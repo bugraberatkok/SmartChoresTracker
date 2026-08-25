@@ -2,6 +2,7 @@ package com.capstone.choreapp.group.service;
 
 import java.util.List;
 
+import com.capstone.choreapp.group.membership.service.GroupMembershipService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,7 @@ public class GroupService {
     private final GroupMapper groupMapper;
     private final GroupMembershipRepository groupMembershipRepository;
     private final GroupMembershipMapper groupMembershipMapper;
+    private final GroupMembershipService groupMembershipService;
 
     @Transactional
     public GroupResponse createGroup(
@@ -61,17 +63,21 @@ public class GroupService {
     }
 
     @Transactional(readOnly = true)
-    public List<GroupResponse> getOwnedGroups(Long ownerId) {
-        return groupRepository.findAllByOwnerId(ownerId)
+    public List<GroupResponse> getUserGroups(Long userId) {
+        return groupMembershipRepository.findAllByUserId(userId)
                 .stream()
+                .map(GroupMembership::getGroup)
                 .map(groupMapper::toResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public GroupResponse getGroupById(Long groupId, Long ownerId) {
-        Group group = groupRepository.findByIdAndOwnerId(groupId, ownerId)
+    public GroupResponse getGroupById(Long groupId, Long userId) {
+
+        Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new GroupNotFoundException(groupId));
+
+        groupMembershipService.requireMember(groupId, userId);
 
         return groupMapper.toResponse(group);
     }

@@ -2,6 +2,7 @@ package com.capstone.choreapp.chore.controller;
 
 import com.capstone.choreapp.chore.dto.ChoreResponse;
 import com.capstone.choreapp.chore.dto.CreateChoreRequest;
+import com.capstone.choreapp.chore.dto.UpdateChoreRequest;
 import com.capstone.choreapp.chore.service.ChoreService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +59,23 @@ public class ChoreController {
                 groupId,
                 choreId,
                 userId
+        );
+    }
+
+    @PatchMapping("/{choreId}")
+    public ChoreResponse updateChore(
+            @PathVariable Long groupId,
+            @PathVariable Long choreId,
+            @Valid @RequestBody UpdateChoreRequest request,
+            Authentication authentication
+    ) {
+        Long requesterId = Long.valueOf(authentication.getName());
+
+        return choreService.updateChore(
+                groupId,
+                choreId,
+                requesterId,
+                request
         );
     }
 }

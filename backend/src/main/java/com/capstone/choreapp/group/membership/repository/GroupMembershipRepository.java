@@ -18,4 +18,6 @@ public interface GroupMembershipRepository
     );
 
     List<GroupMembership> findAllByGroupId(Long groupId);
+
+    List<GroupMembership> findAllByUserId(Long userId);
 }

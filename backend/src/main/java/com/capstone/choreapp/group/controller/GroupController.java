@@ -30,12 +30,12 @@ public class GroupController {
     }
 
     @GetMapping
-    public List<GroupResponse> getOwnedGroups(
+    public List<GroupResponse> getUserGroups(
             Authentication authentication
     ) {
-        Long ownerId = Long.valueOf(authentication.getName());
+        Long userId = Long.valueOf(authentication.getName());
 
-        return groupService.getOwnedGroups(ownerId);
+        return groupService.getUserGroups(userId);
     }
 
     @GetMapping("/{groupId}")
@@ -43,9 +43,9 @@ public class GroupController {
             @PathVariable Long groupId,
             Authentication authentication
     ) {
-        Long ownerId = Long.valueOf(authentication.getName());
+        Long userId = Long.valueOf(authentication.getName());
 
-        return groupService.getGroupById(groupId, ownerId);
+        return groupService.getGroupById(groupId, userId);
     }
 
     @PatchMapping("/{groupId}")

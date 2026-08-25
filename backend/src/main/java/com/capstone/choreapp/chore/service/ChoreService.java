@@ -2,6 +2,7 @@ package com.capstone.choreapp.chore.service;
 
 import com.capstone.choreapp.chore.dto.CreateChoreRequest;
 import com.capstone.choreapp.chore.dto.ChoreResponse;
+import com.capstone.choreapp.chore.dto.UpdateChoreRequest;
 import com.capstone.choreapp.chore.entity.Chore;
 import com.capstone.choreapp.chore.entity.ChoreStatus;
 import com.capstone.choreapp.chore.mapper.ChoreMapper;
@@ -111,6 +112,64 @@ public class ChoreService {
 
         if (!chore.getGroup().getId().equals(groupId)) {
             throw new ChoreNotFoundException(choreId);
+        }
+
+        return choreMapper.toResponse(chore);
+    }
+
+    @Transactional
+    public ChoreResponse updateChore(
+            Long groupId,
+            Long choreId,
+            Long requesterId,
+            UpdateChoreRequest request
+    ) {
+        groupMembershipService.requireManager(groupId, requesterId);
+
+        Chore chore = choreRepository.findById(choreId)
+                .orElseThrow(() -> new ChoreNotFoundException(choreId));
+
+        if (!chore.getGroup().getId().equals(groupId)) {
+            throw new ChoreNotFoundException(choreId);
+        }
+
+        if (request.title() != null) {
+            String title = request.title().trim();
+
+            if (title.isBlank()) {
+                throw new IllegalArgumentException("Chore title cannot be blank");
+            }
+
+            chore.setTitle(title);
+        }
+
+        if (request.description() != null) {
+            chore.setDescription(request.description().trim());
+        }
+
+        if (request.points() != null) {
+            chore.setPoints(request.points());
+        }
+
+        if (request.dueDate() != null) {
+            chore.setDueDate(request.dueDate());
+        }
+
+        if (request.assignedUserId() != null) {
+            User assignedUser = userRepository
+                    .findById(request.assignedUserId())
+                    .orElseThrow(() ->
+                            new UserNotFoundException("Assigned user was not found")
+                    );
+
+            // En önemli güvenlik/business kontrolü:
+            // kullanıcı gerçekten bu group'un üyesi mi?
+            groupMembershipService.requireMember(
+                    groupId,
+                    assignedUser.getId()
+            );
+
+            chore.setAssignedUser(assignedUser);
         }
 
         return choreMapper.toResponse(chore);
