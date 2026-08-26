@@ -32,8 +32,9 @@ function toHousehold(group: GroupResponse, currentUserId: number): Household {
 function toMember(m: GroupMemberResponse, chores: ChoreResponse[]): Member {
   const assignedChores = chores.filter((chore) => chore.assignedUserId === m.userId)
   const points = assignedChores
-    .filter((chore) => chore.status === 'COMPLETED')
-    .reduce((sum, chore) => sum + (chore.points ?? 0), 0)
+    .reduce((sum, chore) => sum + (chore.points ?? 0) * (
+      chore.recurring ? chore.completedDates.length : chore.status === 'COMPLETED' ? 1 : 0
+    ), 0)
 
   return {
     id: m.userId,
@@ -68,7 +69,19 @@ function App() {
       setCurrentUser(user)
 
       const groups = await fetchGroups()
-      setHouseholds(groups.map((g) => toHousehold(g, user.id)))
+      const populatedHouseholds = await Promise.all(groups.map(async (group) => {
+        const household = toHousehold(group, user.id)
+        try {
+          const members = await fetchGroupMembers(group.id)
+          household.members = members.map((member) => toMember(member, []))
+          const currentMembership = members.find((member) => member.userId === user.id)
+          household.isAdmin = currentMembership?.role === 'OWNER' || currentMembership?.role === 'ADMIN'
+        } catch {
+          // Keep this household visible if its membership request fails.
+        }
+        return household
+      }))
+      setHouseholds(populatedHouseholds)
     } catch {
       // If token is stale / invalid, kick back to login
       clearToken()
@@ -136,16 +149,37 @@ function App() {
 
   // ---- callback: new group was created from HouseholdsPage ---------------
 
-  const handleGroupCreated = (group: GroupResponse) => {
+  const handleGroupCreated = async (group: GroupResponse) => {
     if (!currentUser) return
     const newHousehold = toHousehold(group, currentUser.id)
+    try {
+      const members = await fetchGroupMembers(group.id)
+      newHousehold.members = members.map((member) => toMember(member, []))
+      const currentMembership = members.find((member) => member.userId === currentUser.id)
+      newHousehold.isAdmin = currentMembership?.role === 'OWNER' || currentMembership?.role === 'ADMIN'
+    } catch {
+      // Keep the household visible even if its member count cannot be refreshed.
+    }
     setHouseholds((prev) => [...prev, newHousehold])
+  }
+
+  const handleGroupUpdated = (group: GroupResponse) => {
+    if (!currentUser) return
+    setHouseholds((previous) => previous.map((household) =>
+      household.id === group.id
+        ? { ...toHousehold(group, currentUser.id), members: household.members }
+        : household,
+    ))
+  }
+
+  const handleGroupDeleted = (groupId: number) => {
+    setHouseholds((previous) => previous.filter((household) => household.id !== groupId))
   }
 
   // ---- render -------------------------------------------------------------
 
   if (page === 'register') {
-    return <RegisterPage onSignIn={() => setPage('login')} onRegister={() => setPage('login')} />
+    return <RegisterPage onSignIn={() => setPage('login')} onRegister={handleLogin} />
   }
 
   if (page === 'households') {
@@ -156,6 +190,8 @@ function App() {
         loading={loading}
         onSelect={selectHousehold}
         onGroupCreated={handleGroupCreated}
+        onGroupUpdated={handleGroupUpdated}
+        onGroupDeleted={handleGroupDeleted}
         onLogout={handleLogout}
       />
     )
@@ -167,12 +203,6 @@ function App() {
         household={selectedHousehold}
         currentUserId={currentUser?.id ?? null}
         onBack={() => setPage('households')}
-        onHouseholdDeleted={() => {
-          setHouseholds((prev) => prev.filter((h) => h.id !== selectedHousehold.id))
-          setSelectedHousehold(null)
-          setSelectedMember(null)
-          setPage('households')
-        }}
         onMemberRemoved={(userId) => {
           setSelectedHousehold((prev) =>
             prev ? { ...prev, members: prev.members.filter((m) => m.id !== userId) } : prev,

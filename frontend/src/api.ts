@@ -189,6 +189,10 @@ export interface ChoreResponse {
   createdByUserId: number
   status: 'PENDING' | 'COMPLETED'
   points: number | null
+  icon: string
+  recurring: boolean
+  recurrenceDays: string[]
+  completedDates: string[]
   dueDate: string | null
   completedAt: string | null
   createdAt: string
@@ -211,6 +215,9 @@ export function createChore(
     assignedUserId?: number
     points?: number
     dueDate?: string
+    icon?: string
+    recurring?: boolean
+    recurrenceDays?: string[]
   },
 ) {
   return request<ChoreResponse>(`/groups/${groupId}/chores`, {
@@ -219,8 +226,9 @@ export function createChore(
   })
 }
 
-export function completeChore(groupId: number, choreId: number) {
-  return request<ChoreResponse>(`/groups/${groupId}/chores/${choreId}/complete`, {
+export function completeChore(groupId: number, choreId: number, date?: string) {
+  const query = date ? `?date=${encodeURIComponent(date)}` : ''
+  return request<ChoreResponse>(`/groups/${groupId}/chores/${choreId}/complete${query}`, {
     method: 'PATCH',
   })
 }
@@ -235,6 +243,9 @@ export function updateChore(
     assignedUserId?: number
     points?: number
     dueDate?: string
+    icon?: string
+    recurring?: boolean
+    recurrenceDays?: string[]
   },
 ) {
   return request<ChoreResponse>(`/groups/${groupId}/chores/${choreId}`, {

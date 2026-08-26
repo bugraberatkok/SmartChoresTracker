@@ -10,6 +10,10 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "chores")
@@ -46,6 +50,23 @@ public class Chore {
 
     @Column(nullable = false)
     private Integer points;
+
+    @Column(nullable = false, length = 16, columnDefinition = "varchar(16) default '🧹'")
+    private String icon = "🧹";
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean recurring;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "chore_recurrence_days", joinColumns = @JoinColumn(name = "chore_id"))
+    @Column(name = "day_of_week", nullable = false, length = 12)
+    @Enumerated(EnumType.STRING)
+    private Set<DayOfWeek> recurrenceDays = new HashSet<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "chore_completion_dates", joinColumns = @JoinColumn(name = "chore_id"))
+    @Column(name = "completion_date", nullable = false)
+    private Set<LocalDate> completedDates = new HashSet<>();
 
     @Column(name = "due_date")
     private Instant dueDate;

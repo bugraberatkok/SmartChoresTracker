@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import com.capstone.choreapp.group.exception.GroupNotFoundException;
 import com.capstone.choreapp.group.membership.exception.GroupAccessDeniedException;
 import com.capstone.choreapp.group.membership.exception.GroupMembershipNotFoundException;
@@ -18,6 +19,29 @@ import java.time.LocalDateTime;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiErrorResponse> handleValidationFailure(
+            MethodArgumentNotValidException exception,
+            HttpServletRequest request
+    ) {
+        String message = exception.getBindingResult().getFieldErrors().stream()
+                .filter(error -> "password".equals(error.getField()))
+                .findFirst()
+                .or(() -> exception.getBindingResult().getFieldErrors().stream().findFirst())
+                .map(error -> error.getDefaultMessage())
+                .orElse("Validation failed");
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                message,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.badRequest().body(response);
+    }
 
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(

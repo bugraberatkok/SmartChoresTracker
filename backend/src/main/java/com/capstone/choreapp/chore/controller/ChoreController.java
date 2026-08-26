@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/groups/{groupId}/chores")
@@ -51,6 +52,7 @@ public class ChoreController {
     public ChoreResponse getChoreById(
             @PathVariable Long groupId,
             @PathVariable Long choreId,
+            @RequestParam(required = false) LocalDate date,
             Authentication authentication
     ) {
         Long userId = Long.valueOf(authentication.getName());
@@ -99,6 +101,7 @@ public class ChoreController {
     public ChoreResponse completeChore(
             @PathVariable Long groupId,
             @PathVariable Long choreId,
+            @RequestParam(required = false) LocalDate date,
             Authentication authentication
     ) {
         Long requesterId = Long.valueOf(authentication.getName());
@@ -106,7 +109,8 @@ public class ChoreController {
         return choreService.completeChore(
                 groupId,
                 choreId,
-                requesterId
+                requesterId,
+                date
         );
     }
 }

@@ -15,19 +15,10 @@ public record RegisterRequest(
         @Email(message = "Email format is invalid")
         String email,
 
-        @NotBlank(message = "Password cannot be empty")
-        @Size(min = 8, max = 100, message = "Password must be at least 8 characters")
+        @NotBlank(message = "Invalid password. The The password must contain at least 8 characters, one uppercase letter, one number and one special character such as !, ?, or @.")
         @Pattern(
-                regexp = ".*\\p{Lu}.*",
-                message = "Password must contain at least one uppercase letter"
-        )
-        @Pattern(
-                regexp = ".*\\d.*",
-                message = "Password must contain at least one number"
-        )
-        @Pattern(
-                regexp = ".*[^\\p{L}\\p{N}\\s].*",
-                message = "Password must contain at least one special character"
+                regexp = "^(?=.{8,100}$)(?=.*\\p{Lu})(?=.*\\d)(?=.*[^\\p{L}\\p{N}\\s]).*$",
+                message = "Invalid password. The The password must contain at least 8 characters, one uppercase letter, one number and one special character such as !, ?, or @."
         )
         String password
 ) {

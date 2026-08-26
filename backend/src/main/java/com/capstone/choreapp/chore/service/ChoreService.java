@@ -19,6 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import com.capstone.choreapp.chore.exception.ChoreNotFoundException;
 
@@ -81,6 +84,11 @@ public class ChoreService {
                         ? request.points()
                         : 0
         );
+        chore.setIcon(request.icon() == null || request.icon().isBlank() ? "🧹" : request.icon());
+        chore.setRecurring(Boolean.TRUE.equals(request.recurring()));
+        chore.setRecurrenceDays(request.recurrenceDays() == null
+                ? new HashSet<>()
+                : new HashSet<>(request.recurrenceDays()));
         chore.setDueDate(request.dueDate());
 
         Chore savedChore = choreRepository.save(chore);
@@ -157,6 +165,18 @@ public class ChoreService {
             chore.setDueDate(request.dueDate());
         }
 
+        if (request.icon() != null && !request.icon().isBlank()) {
+            chore.setIcon(request.icon());
+        }
+
+        if (request.recurring() != null) {
+            chore.setRecurring(request.recurring());
+        }
+
+        if (request.recurrenceDays() != null) {
+            chore.setRecurrenceDays(new HashSet<>(request.recurrenceDays()));
+        }
+
         if (request.assignedUserId() != null) {
             User assignedUser = userRepository
                     .findById(request.assignedUserId())
@@ -199,7 +219,8 @@ public class ChoreService {
     public ChoreResponse completeChore(
             Long groupId,
             Long choreId,
-            Long requesterId
+            Long requesterId,
+            LocalDate occurrenceDate
     ) {
         // Grubun dışındaki biri chore tamamlayamasın
         groupMembershipService.requireMember(groupId, requesterId);
@@ -218,6 +239,15 @@ public class ChoreService {
         // Assigned user değilse OWNER / ADMIN olmak zorunda
         if (!isAssignedUser) {
             groupMembershipService.requireManager(groupId, requesterId);
+        }
+
+        if (chore.isRecurring()) {
+            LocalDate date = occurrenceDate != null
+                    ? occurrenceDate
+                    : LocalDate.now(ZoneId.systemDefault());
+            chore.getCompletedDates().add(date);
+            chore.setCompletedAt(Instant.now());
+            return choreMapper.toResponse(chore);
         }
 
         // Tekrar request gelirse sorun çıkarmasın

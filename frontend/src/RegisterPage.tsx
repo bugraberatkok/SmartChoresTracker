@@ -1,11 +1,17 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { EyeIcon, HomeMark } from './LoginPage'
-import { register, ApiError } from './api'
+import { register, login, ApiError, type AuthUser } from './api'
+
+const PASSWORD_REQUIREMENT =
+  'The password must contain at least 8 characters, one uppercase letter, one number and one special character such as !, ?, or @.'
+
+const PASSWORD_PATTERN =
+  /^(?=.{8,100}$)(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).*$/
 
 type RegisterPageProps = {
   onSignIn: () => void
-  onRegister: () => void
+  onRegister: (token: string, user: AuthUser) => void
 }
 
 export default function RegisterPage({ onSignIn, onRegister }: RegisterPageProps) {
@@ -13,6 +19,7 @@ export default function RegisterPage({ onSignIn, onRegister }: RegisterPageProps
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [passwordFocused, setPasswordFocused] = useState(false)
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -32,11 +39,18 @@ export default function RegisterPage({ onSignIn, onRegister }: RegisterPageProps
     const email = String(data.get('email'))
     const password = String(data.get('password'))
 
+    if (!PASSWORD_PATTERN.test(password)) {
+      setMessage('')
+      setError(`Invalid password. ${PASSWORD_REQUIREMENT}`)
+      setLoading(false)
+      return
+    }
+
     try {
       await register(name, email, password)
-      setMessage('Account created! Please sign in.')
-      // After successful registration, redirect to login
-      setTimeout(() => onRegister(), 800)
+      setMessage('Account created! Taking you to the app...')
+      const response = await login(email, password)
+      onRegister(response.accessToken, response.user)
     } catch (err) {
       setMessage('')
       if (err instanceof ApiError) {
@@ -101,9 +115,12 @@ export default function RegisterPage({ onSignIn, onRegister }: RegisterPageProps
             </div>
 
             <label className="field-label" htmlFor="register-password">Password</label>
+            {passwordFocused && (
+              <p id="password-requirement" className="password-requirement" role="note">{PASSWORD_REQUIREMENT}</p>
+            )}
             <div className="input-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" /></svg>
-              <input id="register-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="At least 8 characters" minLength={8} required />
+              <input id="register-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Password" minLength={8} required aria-describedby={passwordFocused ? 'password-requirement' : undefined} onFocus={() => setPasswordFocused(true)} onBlur={() => setPasswordFocused(false)} />
               <button className="icon-button" type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}><EyeIcon hidden={showPassword} /></button>
             </div>
 
