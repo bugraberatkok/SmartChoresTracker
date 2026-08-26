@@ -1,69 +1,108 @@
-# Smart Chores Tracker – Backend
+# Smart Chores Tracker
 
-Spring Boot tabanlı **Smart Chores Tracker** backend'i.
+Smart Chores Tracker is a full-stack household/group chore management application built for a Capstone project.
 
-Bu proje; aynı evde / grupta bulunan kullanıcıların görev oluşturabilmesi, görevleri grup üyelerine atayabilmesi, tamamlayabilmesi ve ileride puan / badge gibi gamification özelliklerinin eklenebilmesi amacıyla geliştirilmiştir.
+The application allows users to create shared households, manage members, assign chores, complete tasks, track chore points, and provides a foundation for a larger gamification system with leaderboards, badges, progress tracking, recurring chores, and notifications.
 
-> Bu README mevcut backend durumunu, proje mimarisini, PostgreSQL kurulumunu, Postman test akışını, frontend entegrasyonunu ve geliştirilmesi kalan işleri açıklamak için hazırlanmıştır.
-
----
-
-## 1. Kullanılan Teknolojiler
-
-- **Java 21**
-- **Spring Boot 4.1.0**
-- **Spring Web**
-- **Spring Security**
-- **OAuth2 Resource Server / JWT**
-- **Spring Data JPA**
-- **Jakarta Validation**
-- **PostgreSQL**
-- **Lombok**
-- **Maven**
+> The repository name still contains `choreappBackend`, but the repository is now a **monorepo** containing both the Spring Boot backend and the React frontend.
 
 ---
 
-## 2. Mevcut Backend Durumu
+## Project Status
 
-Şu anda temel backend altyapısı çalışır durumdadır.
+The core household and chore management flow is currently working end-to-end.
 
-### Tamamlanan ana özellikler
+### Working features
 
-- Kullanıcı register işlemi
-- Kullanıcı login işlemi
-- JWT üretimi ve JWT ile korunan endpoint'ler
-- Merkezi hata yönetimi (`GlobalExceptionHandler`)
-- Group CRUD işlemleri
-- Group Membership altyapısı
-- `OWNER / ADMIN / MEMBER` rol yapısı
-- Grup oluşturulduğunda oluşturan kullanıcının otomatik `OWNER` yapılması
-- Gruba kullanıcı ekleme
-- Grup üyelerini listeleme
-- Chore oluşturma
-- Grup içindeki chore'ları listeleme
-- Tek bir chore detayını güvenli şekilde görüntüleme
-- Chore'un yalnızca ilgili grubun üyesine atanabilmesi
-- Grup bazlı authorization kontrolleri
+- User registration
+- User login
+- JWT authentication
+- Protected API endpoints
+- Current-user endpoint
+- Household creation
+- Household listing for both owners and members
+- Household detail access for members
+- Household update
+- Household deletion
+- Automatic `OWNER` membership when a household is created
+- Household member listing
+- Add member by email
+- Self-join household flow using group ID
+- Remove/kick a member
+- `OWNER / ADMIN / MEMBER` authorization model
+- Chore creation
+- Chore assignment to a household member
+- Chore listing
+- Member-specific chore dashboards
+- Chore update
+- Chore deletion
+- Chore completion
+- Persistent completion state in PostgreSQL
+- Chore points
+- Frontend member point totals derived from completed chores
+- Frontend member chore counts
+- Frontend permission-aware controls
+- Modal-based chore creation/edit/delete flow
+- Modal-based household deletion flow
+
+The main unfinished area is the **persistent gamification module**.
 
 ---
 
-# 3. Proje Mimarisi
+## Tech Stack
 
-Backend, mümkün olduğunca **feature/module bazlı modüler monolith** yapısında tutulmuştur.
+### Backend
 
-Temel fikir:
+- Java 21
+- Spring Boot 4.1.0
+- Spring Web MVC
+- Spring Security
+- OAuth2 Resource Server / JWT
+- Spring Data JPA
+- Jakarta Validation
+- PostgreSQL
+- Lombok
+- Maven / Maven Wrapper
 
-- Auth işlemleri kendi paketinde kalır.
-- Group işlemleri kendi paketinde kalır.
-- Membership, group domain'inin altında tutulur.
-- Chore bağımsız bir feature olarak tutulur.
-- Gamification daha sonra ayrı bir modül olarak eklenebilir.
+### Frontend
 
-Yaklaşık package yapısı:
+- React 19
+- TypeScript
+- Vite
+- CSS
+- Fetch API
+
+### Development Database
+
+- PostgreSQL
+
+---
+
+## Repository Structure
 
 ```text
-src/main/java/com/capstone/choreapp
+choreappBackend/
+├── README.md
+├── backend/
+│   ├── pom.xml
+│   ├── mvnw
+│   ├── mvnw.cmd
+│   └── src/
+│       └── main/
+│           ├── java/com/capstone/choreapp/
+│           └── resources/
 │
+└── frontend/
+    ├── package.json
+    ├── package-lock.json
+    ├── vite.config.ts
+    └── src/
+```
+
+The backend follows a feature-oriented modular monolith structure.
+
+```text
+com.capstone.choreapp
 ├── auth
 │   ├── controller
 │   ├── dto
@@ -85,7 +124,6 @@ src/main/java/com/capstone/choreapp
 │   ├── mapper
 │   ├── repository
 │   ├── service
-│   │
 │   └── membership
 │       ├── controller
 │       ├── dto
@@ -109,67 +147,16 @@ src/main/java/com/capstone/choreapp
 │
 ├── config
 ├── security
-│
 └── ChoreappApplication
 ```
 
----
-
-# 4. Katmanların Görevleri
-
-## Controller
-
-HTTP request'lerini karşılar.
-
-Örnek:
-
-```text
-POST /api/groups
-GET  /api/groups/{groupId}/chores
-```
-
-Controller'ın görevi business logic yazmak değil; request'i alıp ilgili service'e aktarmaktır.
+The purpose of this structure is to keep each feature as independent as possible. Future features such as gamification, recurring chores, and notifications should be added as separate modules instead of being mixed directly into authentication code.
 
 ---
 
-## Service
+## Main Domain Model
 
-Asıl iş kuralları burada tutulur.
-
-Örneğin bir chore oluşturulurken:
-
-1. Kullanıcının ilgili grupta yetkili olup olmadığı kontrol edilir.
-2. Group bulunur.
-3. Chore'u oluşturan User bulunur.
-4. Atanan kullanıcı varsa gerçekten ilgili grubun üyesi olup olmadığı kontrol edilir.
-5. Chore oluşturulur.
-6. Repository üzerinden database'e kaydedilir.
-
----
-
-## Repository
-
-Database ile iletişim sağlar.
-
-Spring Data JPA kullanıldığı için temel CRUD işlemleri hazır gelir.
-
-Örneğin:
-
-```java
-findById(...)
-save(...)
-delete(...)
-```
-
-Ayrıca projeye özel sorgular tanımlanmıştır.
-
----
-
-## Entity
-
-PostgreSQL tablolarını temsil eder.
-
-Ana entity'ler:
+The current main entities are:
 
 ```text
 User
@@ -178,180 +165,36 @@ GroupMembership
 Chore
 ```
 
----
-
-## DTO
-
-Frontend ile backend arasında taşınan request / response verileridir.
-
-Entity'lerin doğrudan frontend'e gönderilmemesi için kullanılır.
-
-Örnek:
-
-```text
-CreateGroupRequest
-GroupResponse
-CreateChoreRequest
-ChoreResponse
-```
-
----
-
-## Mapper
-
-Entity ve DTO dönüşümlerini yapar.
-
-Örneğin:
-
-```text
-Group -> GroupResponse
-GroupMembership -> GroupMemberResponse
-Chore -> ChoreResponse
-```
-
----
-
-# 5. Entity İlişkileri
-
-Genel ilişki:
-
-```text
-                    User
-                  /  |   \
-                 /   |    \
-                /    |     \
-               ▼     ▼      ▼
-            Group  Membership  Chore
-              ▲        │         │
-              │        │         │
-              └────────┘         │
-                   │             │
-                   └─────────────┘
-```
-
-Daha açık hali:
+Conceptually:
 
 ```text
 User
- │
- │ owns
- ▼
-Group
- │
- │ has
- ▼
-GroupMembership
- │
- ├── User
- ├── Group
- └── Role
+ ├── owns Group
+ ├── has GroupMembership
+ ├── creates Chore
+ └── can be assigned Chore
 
 Group
- │
- │ has many
- ▼
+ ├── owner -> User
+ ├── memberships -> GroupMembership
+ └── chores -> Chore
+
+GroupMembership
+ ├── user -> User
+ ├── group -> Group
+ └── role -> OWNER / ADMIN / MEMBER
+
 Chore
+ ├── group -> Group
  ├── createdBy -> User
  ├── assignedUser -> User (nullable)
- └── group -> Group
+ ├── status -> PENDING / COMPLETED
+ ├── points
+ ├── dueDate
+ └── completedAt
 ```
 
----
-
-# 6. Group Membership Mantığı
-
-`GroupMembership`, bir kullanıcının bir gruptaki üyeliğini ve rolünü temsil eder.
-
-Alanlar yaklaşık olarak:
-
-```text
-id
-user
-group
-role
-joinedAt
-```
-
-Roller:
-
-```text
-OWNER
-ADMIN
-MEMBER
-```
-
-Aynı kullanıcı aynı gruba iki kez üye olamaz.
-
-Database seviyesinde:
-
-```text
-user_id + group_id
-```
-
-kombinasyonu unique tutulmaktadır.
-
-## Grup oluşturulduğunda
-
-Akış:
-
-```text
-POST /api/groups
-      ↓
-JWT'den user id alınır
-      ↓
-Group oluşturulur
-      ↓
-Group kaydedilir
-      ↓
-GroupMembership oluşturulur
-      ↓
-role = OWNER
-```
-
-Yani grubu oluşturan kişi otomatik olarak grubun ilk üyesidir.
-
----
-
-# 7. Authorization Mantığı
-
-JWT'nin `subject (sub)` alanında **User ID** tutulmaktadır.
-
-Bu nedenle authentication üzerinden:
-
-```java
-authentication.getName()
-```
-
-ile gelen değer kullanıcı id'sine dönüştürülmektedir.
-
-Örnek:
-
-```java
-Long userId = Long.valueOf(authentication.getName());
-```
-
-Membership servisinde merkezi authorization metotları bulunmaktadır.
-
-Mantık:
-
-```text
-requireMember()
-→ OWNER / ADMIN / MEMBER geçebilir
-
-requireManager()
-→ OWNER / ADMIN geçebilir
-
-requireOwner()
-→ sadece OWNER geçebilir
-```
-
-Bu kontroller özellikle Chore modülünde tekrar kullanılmaktadır.
-
----
-
-# 8. Database Yapısı
-
-PostgreSQL içerisinde temel olarak şu tablolar oluşmaktadır:
+The database currently contains tables corresponding to the main entities, including:
 
 ```text
 users
@@ -360,50 +203,195 @@ group_memberships
 chores
 ```
 
-> `Group` SQL tarafında özel kelimelerle çakışabileceği için tablo adı `chore_groups` olarak tutulmuştur.
-
-Hibernate geliştirme aşamasında entity'lerden tabloları otomatik oluşturmaktadır:
-
-```properties
-spring.jpa.hibernate.ddl-auto=update
-```
-
-Bu nedenle PostgreSQL'de tabloların elle oluşturulması gerekmez.
+`chore_groups` is used instead of a generic SQL table name such as `group`.
 
 ---
 
-# 9. PostgreSQL Kurulumu
+## Authentication
 
-Arkadaş bilgisayarında PostgreSQL kuruluysa yalnızca boş bir database oluşturulması yeterlidir.
+Authentication is JWT based.
 
-Önerilen database adı:
+Public endpoints:
+
+```text
+/api/auth/**
+```
+
+All other API endpoints require authentication.
+
+The JWT `sub` claim stores the authenticated **user ID**.
+
+Therefore backend controllers commonly resolve the authenticated user with:
+
+```java
+Long userId = Long.valueOf(authentication.getName());
+```
+
+The configured access-token lifetime is currently:
+
+```text
+45 minutes
+```
+
+---
+
+## Authorization and Roles
+
+Household authorization is centralized through membership checks.
+
+### Roles
+
+```text
+OWNER
+ADMIN
+MEMBER
+```
+
+### Core authorization helpers
+
+```text
+requireMember()
+requireManager()
+requireOwner()
+```
+
+Their intended meaning:
+
+```text
+requireMember
+OWNER / ADMIN / MEMBER
+
+requireManager
+OWNER / ADMIN
+
+requireOwner
+OWNER only
+```
+
+### Current permission summary
+
+| Action | OWNER | ADMIN | MEMBER |
+|---|:---:|:---:|:---:|
+| View household | ✅ | ✅ | ✅ |
+| View members | ✅ | ✅ | ✅ |
+| View household chores | ✅ | ✅ | ✅ |
+| Create chore | ✅ | ✅ | ❌ |
+| Edit chore | ✅ | ✅ | ❌ |
+| Delete chore | ✅ | ✅ | ❌ |
+| Complete own assigned chore | ✅ | ✅ | ✅ |
+| Complete another member's chore | ✅ | ✅ | ❌ |
+| Add member by email | ✅ | ✅ | ❌ |
+| Kick MEMBER | ✅ | ✅ | ❌ |
+| Kick ADMIN | ✅ | ❌ | ❌ |
+| Kick OWNER | ❌ | ❌ | ❌ |
+| Delete household | ✅ | ❌ | ❌ |
+
+A user cannot kick themselves.
+
+When a member is removed from a household, chores assigned to that member are **unassigned** instead of deleting the chores.
+
+---
+
+## Household Membership Flows
+
+There are currently two ways to become a member.
+
+### Manager adds an existing user
+
+```http
+POST /api/groups/{groupId}/members
+```
+
+Example:
+
+```json
+{
+  "email": "member@example.com"
+}
+```
+
+The requester must be `OWNER` or `ADMIN`.
+
+The added user receives the `MEMBER` role.
+
+### Self-join
+
+```http
+POST /api/groups/{groupId}/members/join
+```
+
+The currently authenticated user joins the group as `MEMBER`.
+
+> **Important:** this is currently an MVP shortcut. A user who knows a valid group ID can attempt to join that household. This should be replaced by a secure invitation mechanism before treating the application as production-ready.
+
+Recommended future replacement:
+
+```text
+random invite code
+or
+signed invite link
+or
+join request + manager approval
+```
+
+---
+
+# Running the Project Locally
+
+## Prerequisites
+
+Install:
+
+- Git
+- Java 21
+- PostgreSQL
+- Node.js + npm
+- IntelliJ IDEA is recommended for backend development, but not required
+
+You do not need to install Maven globally because the backend contains the Maven Wrapper.
+
+---
+
+## 1. Clone the repository
+
+```bash
+git clone https://github.com/bugraberatkok/choreappBackend.git
+cd choreappBackend
+```
+
+---
+
+## 2. Create the PostgreSQL database
+
+Start PostgreSQL and create an empty database.
+
+Recommended database name:
 
 ```text
 choreapp
 ```
 
-pgAdmin üzerinden:
+Example SQL:
 
-```text
-Servers
-→ PostgreSQL
-→ Databases
-→ Create
-→ Database
-→ choreapp
+```sql
+CREATE DATABASE choreapp;
 ```
 
-Database oluşturulduktan sonra tabloları elle eklemeyin.
+Do **not** manually create the application tables.
 
-Backend ilk kez çalıştırıldığında Hibernate tabloları oluşturacaktır.
+The development configuration currently uses:
+
+```properties
+spring.jpa.hibernate.ddl-auto=update
+```
+
+Hibernate will create/update the tables from the entities when the backend starts.
 
 ---
 
-# 10. Environment Variables
+## 3. Backend Environment Variables
 
-`application.properties` içerisinde secret veya kişisel database şifresi tutulmamaktadır.
-
-Beklenen environment variable'lar:
+The backend expects these environment variables:
 
 ```text
 DB_URL
@@ -412,33 +400,66 @@ DB_PASSWORD
 JWT_SECRET
 ```
 
-Örnek lokal değerler:
+Example values:
 
 ```text
 DB_URL=jdbc:postgresql://localhost:5432/choreapp
 DB_USERNAME=postgres
 DB_PASSWORD=YOUR_POSTGRES_PASSWORD
-JWT_SECRET=YOUR_LONG_RANDOM_SECRET
+JWT_SECRET=YOUR_BASE64_ENCODED_SECRET
 ```
 
-`application.properties`:
+### What each variable means
 
-```properties
-spring.application.name=choreapp
+#### `DB_URL`
 
-spring.datasource.url=${DB_URL}
-spring.datasource.username=${DB_USERNAME}
-spring.datasource.password=${DB_PASSWORD}
+JDBC connection string for PostgreSQL.
 
-spring.jpa.hibernate.ddl-auto=update
+Example:
 
-app.jwt.access-token-minutes=15
-app.jwt.secret=${JWT_SECRET}
-
-server.error.include-stacktrace=never
+```text
+jdbc:postgresql://localhost:5432/choreapp
 ```
 
-## IntelliJ üzerinden environment variable ekleme
+If another PostgreSQL port or database name is used, update this value.
+
+#### `DB_USERNAME`
+
+PostgreSQL username.
+
+Common local value:
+
+```text
+postgres
+```
+
+#### `DB_PASSWORD`
+
+Password belonging to the PostgreSQL user.
+
+Do not commit this value into Git.
+
+#### `JWT_SECRET`
+
+Secret key used to sign and validate JWT access tokens.
+
+The current backend expects this secret to be **Base64 encoded** and uses it with HMAC-SHA256 / HS256.
+
+A convenient way to generate a suitable local secret is:
+
+```bash
+python -c "import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
+```
+
+Copy the printed value into `JWT_SECRET`.
+
+Do not use a short human-readable password as the JWT secret and do not commit the secret.
+
+---
+
+## 4. Configure Environment Variables in IntelliJ
+
+A convenient local setup is:
 
 ```text
 Run
@@ -447,201 +468,239 @@ Run
 → Environment variables
 ```
 
-Buraya kendi PostgreSQL bilgileriniz girilmelidir.
+Add:
 
----
+```text
+DB_URL=jdbc:postgresql://localhost:5432/choreapp
+DB_USERNAME=postgres
+DB_PASSWORD=YOUR_PASSWORD
+JWT_SECRET=YOUR_BASE64_SECRET
+```
 
-# 11. Projeyi Çalıştırma
+Then run `ChoreappApplication`.
 
-## IntelliJ ile
-
-1. Proje clone edilir.
-2. Maven dependency'lerinin yüklenmesi beklenir.
-3. PostgreSQL içerisinde `choreapp` database'i oluşturulur.
-4. Environment variable'lar girilir.
-5. `ChoreappApplication` çalıştırılır.
-
-Backend varsayılan olarak:
+Backend default address:
 
 ```text
 http://localhost:8080
 ```
 
-üzerinde çalışır.
-
 ---
 
-## Maven Wrapper ile
+## 5. Run Backend from Terminal
 
-Windows:
+From the repository root:
+
+```bash
+cd backend
+```
+
+### Windows CMD / PowerShell
 
 ```bash
 mvnw.cmd spring-boot:run
 ```
 
-Git Bash:
+### Git Bash / macOS / Linux
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
----
+The backend should start on:
 
-# 12. Postman ile Test
-
-Önerilen test sırası aşağıdaki gibidir.
-
-> Endpoint yolları mevcut controller yapısına göredir.
-
----
-
-## 12.1 Register
-
-```http
-POST http://localhost:8080/api/auth/register
+```text
+http://localhost:8080
 ```
 
-Örnek body:
+---
+
+## 6. Run Frontend
+
+Open another terminal from the repository root:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Vite normally starts the frontend on:
+
+```text
+http://localhost:5173
+```
+
+The frontend sends requests to paths beginning with:
+
+```text
+/api
+```
+
+Vite proxies those requests to:
+
+```text
+http://localhost:8080
+```
+
+So the normal development setup is:
+
+```text
+Browser
+http://localhost:5173
+       |
+       | /api/*
+       v
+Vite dev proxy
+       |
+       v
+Spring Boot
+http://localhost:8080
+       |
+       v
+PostgreSQL
+```
+
+The backend development CORS configuration currently allows local frontend origins including ports `5173` and `3000`.
+
+---
+
+# Main API Endpoints
+
+All endpoints except `/api/auth/**` require:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+---
+
+## Authentication
+
+### Register
+
+```http
+POST /api/auth/register
+```
+
+Example:
 
 ```json
 {
   "name": "Test User",
-  "email": "test@test.com",
+  "email": "test@example.com",
   "password": "Test123!"
 }
 ```
 
----
-
-## 12.2 Login
+### Login
 
 ```http
-POST http://localhost:8080/api/auth/login
+POST /api/auth/login
 ```
 
-Body:
+Example:
 
 ```json
 {
-  "email": "test@test.com",
+  "email": "test@example.com",
   "password": "Test123!"
 }
 ```
 
-Response içerisinde bir:
+The response contains an `accessToken`.
 
-```text
-accessToken
+### Current user
+
+```http
+GET /api/users/me
 ```
-
-döner.
-
-Bu token sonraki korumalı request'lerde kullanılmalıdır.
-
-Postman:
-
-```text
-Authorization
-→ Bearer Token
-→ accessToken değerini yapıştır
-```
-
-`Bearer` kelimesini token alanına tekrar yazmayın.
 
 ---
 
-# 13. Group Endpoint'leri
+## Households / Groups
 
-## Grup oluşturma
+### Create household
 
 ```http
 POST /api/groups
 ```
 
-Body:
-
 ```json
 {
-  "name": "Test Household",
-  "description": "Example household"
+  "name": "Green Street Home",
+  "description": "Shared apartment"
 }
 ```
 
-Beklenen:
+The creator automatically becomes `OWNER`.
 
-```text
-201 Created
-```
-
-Grubu oluşturan kullanıcı otomatik olarak `OWNER` olur.
-
----
-
-## Kullanıcının sahibi olduğu grupları listeleme
+### List current user's households
 
 ```http
 GET /api/groups
 ```
 
----
+This includes households where the current user is a member, not only households they own.
 
-## Grup detayı
+### Get household
 
 ```http
 GET /api/groups/{groupId}
 ```
 
----
+Any member of the household can access it.
 
-## Grup güncelleme
+### Update household
 
 ```http
 PATCH /api/groups/{groupId}
 ```
 
-Örnek:
+Currently restricted to the owner.
+
+Example:
 
 ```json
 {
-  "name": "Updated Household"
+  "name": "Updated Household",
+  "description": "Updated description"
 }
 ```
 
----
-
-## Grup silme
+### Delete household
 
 ```http
 DELETE /api/groups/{groupId}
 ```
 
-Beklenen:
+Owner-only.
+
+The current delete flow removes:
 
 ```text
-204 No Content
+chores
+→ memberships
+→ household
 ```
+
+This allows a populated household to be deleted without leaving child rows behind.
 
 ---
 
-# 14. Membership Endpoint'leri
+## Membership
 
-## Grup üyelerini listeleme
+### List members
 
 ```http
 GET /api/groups/{groupId}/members
 ```
 
-Bu endpoint'e yalnızca ilgili grubun üyeleri erişebilir.
-
----
-
-## Gruba kullanıcı ekleme
+### Add member by email
 
 ```http
 POST /api/groups/{groupId}/members
 ```
-
-Body:
 
 ```json
 {
@@ -649,405 +708,653 @@ Body:
 }
 ```
 
-Şu an için kullanıcı doğrudan gruba eklenmektedir.
+Requires `OWNER` or `ADMIN`.
 
-> Bu akış MVP seviyesindedir. Daha sonra invitation sistemi ile değiştirilmesi planlanmıştır.
+### Self-join
 
-Eklenen kullanıcı varsayılan olarak:
-
-```text
-MEMBER
+```http
+POST /api/groups/{groupId}/members/join
 ```
 
-rolü alır.
+No body is required.
+
+The authenticated user joins as `MEMBER`.
+
+### Remove member
+
+```http
+DELETE /api/groups/{groupId}/members/{userId}
+```
+
+The current permission rules are:
+
+```text
+OWNER can remove ADMIN or MEMBER
+ADMIN can remove MEMBER
+ADMIN cannot remove another ADMIN
+OWNER cannot be removed
+requester cannot remove themselves
+```
+
+Assigned chores belonging to a removed user are unassigned.
 
 ---
 
-# 15. Chore Endpoint'leri
+## Chores
 
-## Chore oluşturma
+### Create chore
 
 ```http
 POST /api/groups/{groupId}/chores
 ```
 
-Bu işlem için kullanıcının `OWNER` veya `ADMIN` olması gerekmektedir.
+Requires `OWNER` or `ADMIN`.
 
-Örnek body:
+Example:
 
 ```json
 {
   "title": "Clean the kitchen",
-  "description": "Clean the counter and wash the dishes",
-  "assignedUserId": 1,
-  "points": 20,
-  "dueDate": "2026-08-25T18:00:00Z"
+  "description": "Wash the dishes and wipe the counter",
+  "assignedUserId": 3,
+  "points": 10,
+  "dueDate": "2026-08-26T20:00:00Z"
 }
 ```
 
-Kurallar:
+Important fields:
 
-- `assignedUserId` zorunlu değildir.
-- Atanan kullanıcı varsa ilgili grubun üyesi olmak zorundadır.
-- `points` null gelirse `0` olarak tutulur.
-- Yeni chore başlangıçta `PENDING` olur.
+```text
+createdByUserId
+```
 
----
+is the user who created the chore.
 
-## Grup chore'larını listeleme
+```text
+assignedUserId
+```
+
+is the user responsible for completing the chore.
+
+These values are intentionally different concepts.
+
+### List household chores
 
 ```http
 GET /api/groups/{groupId}/chores
 ```
 
-Grubun herhangi bir üyesi erişebilir.
+Accessible to household members.
 
----
-
-## Tek chore detayını görüntüleme
+### Get chore
 
 ```http
 GET /api/groups/{groupId}/chores/{choreId}
 ```
 
-Kontroller:
-
-1. Kullanıcının ilgili grubun üyesi olması gerekir.
-2. Chore gerçekten URL'deki group'a ait olmalıdır.
-
-Bu sayede yalnızca chore id tahmin edilerek başka grubun task bilgilerine erişilemez.
-
----
-
-# 16. Mevcut HTTP Response Mantığı
-
-Temel olarak:
-
-```text
-POST create      → 201 Created
-GET              → 200 OK
-PATCH            → 200 OK
-DELETE           → 204 No Content
-
-Not found        → 404 Not Found
-Unauthorized     → 401 Unauthorized
-Forbidden        → 403 Forbidden
-Conflict         → 409 Conflict
-```
-
-Hatalar `GlobalExceptionHandler` üzerinden ortak bir formatta döndürülmektedir.
-
----
-
-# 17. Frontend ile Entegrasyon
-
-React frontend backend'e HTTP request göndererek bağlanmalıdır.
-
-Backend base URL:
-
-```text
-http://localhost:8080
-```
-
-Frontend tarafında örneğin:
-
-```javascript
-const API_URL = "http://localhost:8080";
-```
-
-tercihen `.env`:
-
-```text
-VITE_API_URL=http://localhost:8080
-```
-
-ve kullanım:
-
-```javascript
-const API_URL = import.meta.env.VITE_API_URL;
-```
-
----
-
-## Login sonrası token saklama
-
-Login response'undan gelen:
-
-```text
-accessToken
-```
-
-frontend tarafında saklanmalı ve korumalı endpoint'lere gönderilmelidir.
-
-Örnek header:
+### Update chore
 
 ```http
-Authorization: Bearer <JWT_TOKEN>
+PATCH /api/groups/{groupId}/chores/{choreId}
 ```
 
-Fetch örneği:
+Requires `OWNER` or `ADMIN`.
 
-```javascript
-fetch(`${API_URL}/api/groups`, {
-  headers: {
-    Authorization: `Bearer ${token}`
-  }
-});
+Example partial update:
+
+```json
+{
+  "title": "Clean kitchen and table",
+  "description": "Kitchen first, then dining table",
+  "points": 15
+}
 ```
 
-Axios kullanılıyorsa ortak axios instance/interceptor kurulması önerilir.
+The update DTO also supports changing the assigned user and due date.
 
----
+### Delete chore
 
-# 18. Önerilen Frontend Akışı
-
-```text
-Register / Login Page
-        ↓
-JWT alınır
-        ↓
-Groups Page
-        ↓
-GET /api/groups
-        ↓
-Group Detail
-        ↓
-GET /api/groups/{id}/members
-GET /api/groups/{id}/chores
-        ↓
-Create Chore
-        ↓
-POST /api/groups/{id}/chores
-```
-
----
-
-# 19. CORS
-
-React ve Spring Boot farklı portlarda çalışacağı için frontend entegrasyonu sırasında CORS ayarı gerekebilir.
-
-Örneğin frontend:
-
-```text
-http://localhost:5173
-```
-
-backend:
-
-```text
-http://localhost:8080
-```
-
-üzerinde çalışıyorsa Spring Security içerisinde frontend origin'inin izinli olması gerekebilir.
-
-Eğer browser'da:
-
-```text
-CORS policy
-```
-
-hatası alınırsa Security/CORS configuration eklenmelidir.
-
-Postman CORS uygulamadığı için Postman'de çalışan bir endpoint'in browser'da CORS nedeniyle engellenmesi mümkündür.
-
----
-
-# 20. Ana Akışta Kalan Backend İşleri
-
-## Chore
-
-- [ ] Chore güncelleme endpoint'i
-- [ ] Chore silme endpoint'i
-- [ ] Chore tamamlama endpoint'i
-- [ ] Completion sırasında `status = COMPLETED` yapılması
-- [ ] Completion sırasında `completedAt` kaydedilmesi
-- [ ] Chore tamamlama yetkisinin assigned user / manager bazında kontrol edilmesi
-- [ ] Update sırasında yeni assigned user'ın group member olduğunun kontrol edilmesi
-- [ ] Eksik Chore exception'larının `GlobalExceptionHandler` ile tamamlanması
-
-Önerilen endpoint'ler:
-
-```text
-PATCH  /api/groups/{groupId}/chores/{choreId}
+```http
 DELETE /api/groups/{groupId}/chores/{choreId}
-PATCH  /api/groups/{groupId}/chores/{choreId}/complete
 ```
 
----
+Requires `OWNER` or `ADMIN`.
 
-# 21. Gamification Tarafında Kalanlar
-
-Gamification henüz uygulanmamıştır.
-
-Chore entity içerisinde `points` alanı hazır tutulmaktadır.
-
-Geliştirilecekler:
-
-- [ ] Tamamlanan chore üzerinden puan kazanılması
-- [ ] Kullanıcı toplam puanı
-- [ ] Grup leaderboard
-- [ ] Tamamlanan görev sayısı
-- [ ] Badge / achievement sistemi
-- [ ] Progress dashboard endpoint'leri
-
-Önemli:
-
-> Chore tamamlandığında direkt `User` entity'sinin içine rastgele puan logic'i gömmek yerine ayrı bir `gamification` service/module oluşturulması önerilir.
-
-Örnek ilerideki akış:
+Returns:
 
 ```text
-Chore completed
-      ↓
-GamificationService
-      ↓
-Points / Stats / Badge
+204 No Content
 ```
 
----
-
-# 22. Group / Membership Tarafında Kalan Ek İşler
-
-- [ ] Invitation sistemi
-- [ ] Invitation accept/reject
-- [ ] Member çıkarma
-- [ ] Kullanıcının gruptan ayrılması
-- [ ] MEMBER → ADMIN rol değiştirme
-- [ ] Ownership transfer
-- [ ] Kullanıcının sadece owner olduğu değil, üyesi olduğu bütün grupların listelenmesi
-
-Şu anda:
+### Complete chore
 
 ```http
-GET /api/groups
+PATCH /api/groups/{groupId}/chores/{choreId}/complete
 ```
 
-kullanıcının **owner olduğu grupları** döndürmektedir.
-
-Frontend için ileride kullanıcının üyesi olduğu tüm grupları getiren ayrı veya güncellenmiş bir endpoint gerekebilir.
-
----
-
-# 23. MVP Sonrası Özellikler
-
-- [ ] Recurring tasks
-- [ ] Deadline yaklaşınca notification
-- [ ] Yeni chore atanınca notification
-- [ ] Activity/history feed
-- [ ] User profile/statistics
-- [ ] Completed chore history
-- [ ] Overdue filtreleme
-- [ ] Chore filtreleme ve sıralama
-
----
-
-# 24. Teknik İyileştirmeler
-
-- [ ] JWT access token süresi gözden geçirilebilir
-- [ ] Refresh token sistemi eklenebilir
-- [ ] Validation error response'ları standartlaştırılabilir
-- [ ] Unit testler eklenebilir
-- [ ] Integration testler eklenebilir
-- [ ] Controller/service authorization testleri eklenebilir
-- [ ] Swagger / OpenAPI eklenebilir
-- [ ] Development ilerledikçe Hibernate `ddl-auto` yerine Flyway/Liquibase düşünülebilir
-- [ ] Production için secret/config yönetimi iyileştirilebilir
-- [ ] CORS config frontend origin'ine göre tamamlanabilir
-
----
-
-# 25. Database Paylaşımı Hakkında
-
-PostgreSQL database dosyasının kendisi GitHub'a yüklenmez.
-
-Her geliştirici kendi bilgisayarında:
+A chore can currently be completed by:
 
 ```text
-choreapp
+the assigned user
+or
+OWNER / ADMIN
 ```
 
-database'ini oluşturur.
+Completion changes:
 
-Spring Boot çalıştırıldığında JPA/Hibernate entity'lerden tablolar oluşturulur.
+```text
+status = COMPLETED
+completedAt = current timestamp
+```
 
-Bu nedenle repoyu clone eden kişinin mevcut lokal verileri gelmez.
+Calling the endpoint again for an already completed chore is handled idempotently and does not create another completion transition.
 
-Örnek test kayıtları gerekiyorsa:
-
-- Postman üzerinden oluşturulabilir
-- İleride `data.sql` eklenebilir
-- Gerekirse database dump kullanılabilir
-
-Şimdilik ortak database dump gerekli değildir.
+There is currently **no reopen/uncomplete endpoint**.
 
 ---
 
-# 26. Yeni Bir Geliştirici İçin Önerilen İlk Test
+# Frontend Flow
 
-Projeyi ilk kez açtıktan sonra:
+The current frontend provides:
 
 ```text
-1. PostgreSQL'de choreapp database oluştur
-2. Environment variable'ları gir
-3. Backend'i çalıştır
-4. Postman'den User A register et
-5. User A login ol ve JWT al
-6. User A ile group oluştur
-7. User B register et
-8. User A tokenıyla User B'yi gruba ekle
-9. Group members endpoint'ini test et
-10. User A ile User B'ye chore oluştur
-11. Group chore list endpoint'ini test et
-12. Chore detail endpoint'ini test et
+Login / Register
+      ↓
+Household list
+      ↓
+Create household / Join household
+      ↓
+Member list
+      ↓
+Member dashboard
+      ↓
+Assigned chores
 ```
 
-Bu akış başarılıysa mevcut backend altyapısı doğru şekilde kurulmuş demektir.
+Important frontend behavior:
+
+- The household list is loaded from the backend.
+- Member permissions are resolved from membership roles.
+- A normal member can open their own dashboard.
+- `OWNER` and `ADMIN` can manage member chores.
+- Member dashboards filter chores by `assignedUserId`.
+- Completing a chore calls the backend `/complete` endpoint.
+- Completion therefore survives page refresh.
+- Chore create/edit/delete operations call the backend.
+- Household deletion calls the backend.
+- Member point totals are currently calculated from completed chores.
+- Member chore counts are calculated from assigned chores.
 
 ---
 
-# 27. Geliştirme Sırası Önerisi
+# Gamification Handoff
 
-Kalan backend için önerilen sıra:
+This is the most important next development area.
+
+## What already exists
+
+Each chore already has:
 
 ```text
-1. Chore Update
-2. Chore Delete
-3. Chore Complete
-4. Frontend integration / CORS
-5. Membership improvements
-6. Gamification
-7. Badges / progress
-8. Recurring tasks
-9. Notifications
-10. Tests / Swagger / cleanup
+points
+status
+assignedUser
+completedAt
+```
+
+This means a completed chore already contains the information needed to award a score.
+
+The frontend currently derives a member's visible point total approximately as:
+
+```text
+sum(points of COMPLETED chores assigned to that member)
+```
+
+The frontend also currently contains placeholder/hardcoded trophy definitions and a progress view.
+
+These are **not yet a persistent backend gamification system**.
+
+---
+
+## Recommended gamification direction
+
+Create a separate backend module, for example:
+
+```text
+gamification
+├── controller
+├── dto
+├── entity
+├── repository
+└── service
+```
+
+Do not put leaderboard/badge logic into `AuthService`.
+
+Possible responsibilities:
+
+### Member statistics
+
+Provide household-specific member statistics such as:
+
+```text
+totalPoints
+completedChores
+assignedChores
+completionRate
+```
+
+Possible endpoint:
+
+```http
+GET /api/groups/{groupId}/members/{userId}/stats
+```
+
+### Leaderboard
+
+Possible endpoint:
+
+```http
+GET /api/groups/{groupId}/leaderboard
+```
+
+Possible response:
+
+```json
+[
+  {
+    "userId": 3,
+    "name": "Alice",
+    "points": 120,
+    "completedChores": 9
+  }
+]
+```
+
+### Badges / achievements
+
+Examples:
+
+```text
+First Chore
+50 Points
+100 Points
+5 Chores Completed
+10 Chores Completed
+Perfect Week
+```
+
+Possible implementation choices:
+
+1. derive badges dynamically from chore history, or
+2. persist earned badges in a dedicated table.
+
+If badges need an earned timestamp or should never disappear, persisting them is usually more useful.
+
+### Completion integration
+
+Current chore completion transition:
+
+```text
+PENDING
+  ↓
+COMPLETED
+```
+
+A future integration could be:
+
+```text
+ChoreService.completeChore(...)
+        ↓
+GamificationService.onChoreCompleted(...)
+        ↓
+update score / achievements
+```
+
+### Important: prevent duplicate scoring
+
+The complete endpoint can be called more than once.
+
+Therefore a persistent points system must not award points twice.
+
+Gamification should only award points on the real state transition:
+
+```text
+PENDING -> COMPLETED
+```
+
+and not when a chore was already completed.
+
+An alternative architecture is to avoid storing a mutable score initially and derive the score from completed chores. That approach naturally avoids score desynchronization, but leaderboard performance and badge history should be considered.
+
+---
+
+# MVP Roadmap
+
+## MVP 1 — Core task flow
+
+Status: **Completed**
+
+- [x] Register
+- [x] Login
+- [x] JWT authentication
+- [x] Create chore
+- [x] List chores
+- [x] Complete chore
+- [x] Persist completion
+
+---
+
+## MVP 2 — Household and assignment
+
+Status: **Mostly completed**
+
+- [x] Create household
+- [x] List user's households
+- [x] Household membership
+- [x] Assign chores to members
+- [x] Chore edit
+- [x] Chore delete
+- [x] Member kick
+- [x] Household delete
+- [x] Chore point value
+- [x] Client-side point summary
+- [ ] Persistent/centralized gamification statistics
+- [ ] Secure invitation flow
+
+---
+
+## MVP 3 — Gamification
+
+Status: **Next major target**
+
+- [ ] Backend member statistics
+- [ ] Leaderboard
+- [ ] Persistent or derived total score strategy
+- [ ] Badge/achievement rules
+- [ ] Badge API
+- [ ] Replace hardcoded frontend trophies with backend data
+- [ ] Real progress/history data
+- [ ] Better gamification visual feedback
+
+---
+
+## MVP 4 — Recurring chores and notifications
+
+Status: **Not started**
+
+- [ ] Recurring chore model
+- [ ] Daily/weekly recurrence rules
+- [ ] Generate next chore occurrence
+- [ ] Due-date reminders
+- [ ] Notifications
+- [ ] Optional email/push integration
+- [ ] Overdue chore handling
+
+---
+
+# Known Limitations / Improvement Backlog
+
+These items are not blockers for the current MVP but should be addressed as the project matures.
+
+## High priority
+
+### Secure household invitations
+
+Current self-join uses the numeric group ID.
+
+Replace it with:
+
+```text
+invite code / invite token / approval request
+```
+
+### Real gamification backend
+
+Current visible score is derived by the frontend.
+
+The backend should become the source of truth for gamification-related data.
+
+### Dynamic calendar
+
+The current member dashboard calendar contains a hardcoded August week.
+
+Replace it with a dynamically generated current week/month based on real dates.
+
+### Role management
+
+Roles exist in the backend, but there is currently no complete promote/demote management flow.
+
+Useful future actions:
+
+```text
+OWNER promotes MEMBER -> ADMIN
+OWNER demotes ADMIN -> MEMBER
 ```
 
 ---
 
-# 28. Özet
+## Medium priority
 
-Mevcut backend'in ana dependency akışı:
+### Reopen a completed chore
 
-```text
-Auth
- ↓
-User
- ↓
-Group
- ↓
-GroupMembership
- ↓
-Chore
- ↓
-Gamification (next)
+Completion is currently one-way.
+
+Possible endpoint:
+
+```http
+PATCH /api/groups/{groupId}/chores/{choreId}/reopen
 ```
 
-Chore modülü, authorization için doğrudan kendi içinde membership sorgusu yazmak yerine:
+Business rules need to define whether points/badges are reversed.
 
-```text
-GroupMembershipService
+### Standardize validation responses
+
+Custom domain exceptions are centralized, but validation errors and some generic bad-input cases can be standardized further.
+
+A consistent API error structure makes frontend handling easier.
+
+### Frontend UI cleanup
+
+Some administrative controls still use simple browser confirmation/alert behavior.
+
+Replace remaining native dialogs with reusable application modal components.
+
+Also consider extracting repeated modal/button styles into reusable React components.
+
+### Group settings UI
+
+Backend household update exists, but a richer frontend household settings page would improve name/description and role administration.
+
+---
+
+## Engineering / Production improvements
+
+- [ ] Automated backend unit tests
+- [ ] Integration tests for authorization
+- [ ] Frontend component/API tests
+- [ ] End-to-end tests
+- [ ] OpenAPI / Swagger documentation
+- [ ] Flyway or Liquibase database migrations
+- [ ] Dockerfile for backend
+- [ ] Dockerfile for frontend
+- [ ] Docker Compose for PostgreSQL + backend + frontend
+- [ ] CI pipeline
+- [ ] Production CORS configuration
+- [ ] Production environment profiles
+- [ ] Logging improvements
+- [ ] Pagination for large chore/member lists
+- [ ] Better frontend loading/error states
+- [ ] Accessibility review
+- [ ] Responsive/mobile polish
+
+---
+
+# Suggested End-to-End Smoke Test
+
+Before merging a large feature, the following scenario gives good coverage.
+
+## Account A — owner
+
+1. Register Account A.
+2. Login.
+3. Create a household.
+4. Confirm Account A is `OWNER`.
+
+## Account B — member
+
+5. Register Account B.
+6. Add B from A by email, or use the current join flow.
+7. Login as B.
+8. Confirm the household appears in B's household list.
+9. Confirm B can open the household and see members.
+
+## Chore assignment
+
+10. Login as A.
+11. Open B's member dashboard.
+12. Create a chore assigned to B.
+13. Edit the chore.
+14. Confirm B only sees chores assigned to B.
+
+## Completion
+
+15. Login as B.
+16. Complete B's chore.
+17. Refresh the page.
+18. Confirm the chore remains `COMPLETED`.
+19. Confirm `completedAt` exists in the database.
+20. Confirm B's point total reflects the completed chore.
+
+## Permissions
+
+21. Confirm B cannot create/edit/delete chores.
+22. Confirm an unrelated household member cannot complete B's chore.
+23. Confirm A can manage chores.
+
+## Member removal
+
+24. Login as A.
+25. Remove B.
+26. Confirm B no longer sees the household.
+27. Confirm chores previously assigned to B are now unassigned rather than deleted.
+
+## Household deletion
+
+28. Create a disposable household with members and chores.
+29. Delete it as its owner.
+30. Confirm its chores and memberships are removed.
+
+---
+
+# Development Notes for Collaborators
+
+Before starting work:
+
+```bash
+git checkout main
+git pull origin main
 ```
 
-üzerindeki ortak permission metotlarını kullanacak şekilde tasarlanmıştır.
+For a feature:
 
-Bu yaklaşım korunursa kalan backend modüllerinin geliştirilmesi daha kolay olacaktır.
+```bash
+git checkout -b feature/gamification
+```
+
+Keep secrets local.
+
+Never commit:
+
+```text
+database passwords
+JWT secrets
+.env files
+IDE-specific secret configuration
+```
+
+Useful ignored build/dependency directories include:
+
+```text
+backend/target/
+frontend/node_modules/
+frontend/dist/
+```
+
+Before committing frontend work:
+
+```bash
+cd frontend
+npm run build
+```
+
+Before committing backend work:
+
+```bash
+cd backend
+./mvnw test
+```
+
+On Windows:
+
+```bash
+mvnw.cmd test
+```
+
+---
+
+# Suggested Next Work Session
+
+A practical next sequence is:
+
+```text
+1. Design gamification data strategy
+2. Add backend member stats / leaderboard
+3. Integrate scoring with chore completion safely
+4. Replace frontend hardcoded trophy data
+5. Make calendar dynamic
+6. Replace numeric group-ID join with invite code
+7. Add tests
+8. Add recurring chores
+9. Add notifications
+```
+
+For gamification, decide one question first:
+
+> Should total points be persisted in a dedicated model, or derived from completed chores?
+
+That choice affects score updates, undo/reopen behavior, leaderboard queries, badge history, and duplicate-award protection.
+
+---
+
+# Current Development Philosophy
+
+The project is intentionally being developed as a **modular monolith**.
+
+The goal is not to split the application into unnecessary microservices.
+
+Instead:
+
+```text
+one deployable backend
++
+clear feature boundaries
++
+independent modules
+```
+
+This keeps the Capstone implementation understandable while allowing future modules such as:
+
+```text
+gamification
+recurring
+notification
+```
+
+to be added without rewriting authentication, group, or chore logic.
+
+---
+
+## License
+
+This repository is currently an academic Capstone project. Add a formal license if the project is later distributed publicly under a specific license.
