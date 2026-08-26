@@ -46,4 +46,35 @@ public class GroupMembershipController {
                 request
         );
     }
+
+    @PostMapping("/join")
+    @ResponseStatus(HttpStatus.CREATED)
+    public GroupMemberResponse joinGroup(
+            @PathVariable Long groupId,
+            Authentication authentication
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+
+        return groupMembershipService.joinGroup(
+                groupId,
+                userId
+        );
+    }
+
+    @DeleteMapping("/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeMember(
+            @PathVariable Long groupId,
+            @PathVariable Long userId,
+            Authentication authentication
+    ) {
+        Long requesterId =
+                Long.valueOf(authentication.getName());
+
+        groupMembershipService.removeMember(
+                groupId,
+                requesterId,
+                userId
+        );
+    }
 }

@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { HomeMark } from './LoginPage'
 import type { Household } from './types'
 import { deriveInitials } from './types'
-import { createGroup, addGroupMember, ApiError, type AuthUser, type GroupResponse } from './api'
+import { createGroup, joinGroup, fetchGroupById, ApiError, type AuthUser, type GroupResponse } from './api'
 
 type Props = {
   households: Household[]
@@ -44,13 +44,12 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
     setSubmitting(true)
     const data = new FormData(event.currentTarget)
     const groupId = Number(data.get('code'))
-    const email = currentUser?.email ?? ''
 
     try {
-      await addGroupMember(groupId, email)
-      // Refresh will happen on next navigation; for now close dialog
+      await joinGroup(groupId)
+      const group = await fetchGroupById(groupId)
+      onGroupCreated(group)
       setDialog(null)
-      // TODO: Could refetch groups here for immediate update
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to join household')
     } finally {

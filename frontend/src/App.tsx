@@ -7,8 +7,8 @@ import RegisterPage from './RegisterPage'
 import type { Household, Member } from './types'
 import { deriveColor, deriveEmoji, deriveInitials } from './types'
 import {
-  setToken, clearToken, isLoggedIn, fetchCurrentUser, fetchGroups, fetchGroupMembers,
-  type AuthUser, type GroupResponse, type GroupMemberResponse,
+  setToken, clearToken, isLoggedIn, fetchCurrentUser, fetchGroups, fetchGroupMembers, fetchGroupChores,
+  type AuthUser, type GroupResponse, type GroupMemberResponse, type ChoreResponse,
 } from './api'
 import './App.css'
 
@@ -29,15 +29,20 @@ function toHousehold(group: GroupResponse, currentUserId: number): Household {
   }
 }
 
-function toMember(m: GroupMemberResponse): Member {
+function toMember(m: GroupMemberResponse, chores: ChoreResponse[]): Member {
+  const assignedChores = chores.filter((chore) => chore.assignedUserId === m.userId)
+  const points = assignedChores
+    .filter((chore) => chore.status === 'COMPLETED')
+    .reduce((sum, chore) => sum + (chore.points ?? 0), 0)
+
   return {
     id: m.userId,
     membershipId: m.membershipId,
     name: m.name,
     email: m.email,
     initials: deriveInitials(m.name),
-    points: 0,    // will be enriched from chore data
-    chores: 0,    // will be enriched from chore data
+    points,
+    chores: assignedChores.length,
     color: deriveColor(m.userId),
     isAdmin: m.role === 'OWNER' || m.role === 'ADMIN',
     role: m.role,
@@ -106,9 +111,19 @@ function App() {
     setPage('members')
 
     try {
-      const membersData = await fetchGroupMembers(household.id)
-      const members = membersData.map(toMember)
-      const enriched = { ...household, members }
+      const [membersData, choresData] = await Promise.all([
+        fetchGroupMembers(household.id),
+        fetchGroupChores(household.id),
+      ])
+      const members = membersData.map((member) => toMember(member, choresData))
+      const currentMembership = membersData.find((m) => m.userId === currentUser?.id)
+      const enriched = {
+        ...household,
+        members,
+        isAdmin:
+          currentMembership?.role === 'OWNER' ||
+          currentMembership?.role === 'ADMIN',
+      }
       setSelectedHousehold(enriched)
       // Also update in the households list so going back shows correct count
       setHouseholds((prev) =>
@@ -150,8 +165,26 @@ function App() {
     return (
       <MembersPage
         household={selectedHousehold}
-        currentUserName={currentUser?.name ?? ''}
+        currentUserId={currentUser?.id ?? null}
         onBack={() => setPage('households')}
+        onHouseholdDeleted={() => {
+          setHouseholds((prev) => prev.filter((h) => h.id !== selectedHousehold.id))
+          setSelectedHousehold(null)
+          setSelectedMember(null)
+          setPage('households')
+        }}
+        onMemberRemoved={(userId) => {
+          setSelectedHousehold((prev) =>
+            prev ? { ...prev, members: prev.members.filter((m) => m.id !== userId) } : prev,
+          )
+          setHouseholds((prev) =>
+            prev.map((h) =>
+              h.id === selectedHousehold.id
+                ? { ...h, members: h.members.filter((m) => m.id !== userId) }
+                : h,
+            ),
+          )
+        }}
         onSelectMember={(member) => {
           setSelectedMember(member)
           setPage('dashboard')
@@ -165,7 +198,7 @@ function App() {
       <MemberDashboard
         household={selectedHousehold}
         member={selectedMember}
-        onBack={() => setPage('members')}
+        onBack={() => selectHousehold(selectedHousehold)}
       />
     )
   }

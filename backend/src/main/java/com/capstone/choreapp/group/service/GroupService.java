@@ -2,6 +2,7 @@ package com.capstone.choreapp.group.service;
 
 import java.util.List;
 
+import com.capstone.choreapp.chore.repository.ChoreRepository;
 import com.capstone.choreapp.group.membership.service.GroupMembershipService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class GroupService {
     private final GroupMembershipRepository groupMembershipRepository;
     private final GroupMembershipMapper groupMembershipMapper;
     private final GroupMembershipService groupMembershipService;
+    private final ChoreRepository choreRepository;
 
     @Transactional
     public GroupResponse createGroup(
@@ -98,9 +100,18 @@ public class GroupService {
 
     @Transactional
     public void deleteGroup(Long groupId, Long ownerId) {
-        Group group = groupRepository.findByIdAndOwnerId(groupId, ownerId)
-                .orElseThrow(() -> new GroupNotFoundException(groupId));
+        Group group = groupRepository
+                .findByIdAndOwnerId(groupId, ownerId)
+                .orElseThrow(() ->
+                        new GroupNotFoundException(groupId)
+                );
+
+        choreRepository.deleteAllByGroupId(groupId);
+
+        groupMembershipRepository.deleteAllByGroupId(groupId);
 
         groupRepository.delete(group);
     }
+
+
 }

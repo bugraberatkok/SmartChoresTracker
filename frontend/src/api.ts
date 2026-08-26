@@ -166,6 +166,18 @@ export function addGroupMember(groupId: number, email: string) {
   })
 }
 
+export function joinGroup(groupId: number) {
+  return request<GroupMemberResponse>(`/groups/${groupId}/members/join`, {
+    method: 'POST',
+  })
+}
+
+export function removeGroupMember(groupId: number, userId: number) {
+  return request<void>(`/groups/${groupId}/members/${userId}`, {
+    method: 'DELETE',
+  })
+}
+
 // ---- Chores ---------------------------------------------------------------
 
 export interface ChoreResponse {
@@ -204,5 +216,36 @@ export function createChore(
   return request<ChoreResponse>(`/groups/${groupId}/chores`, {
     method: 'POST',
     body: JSON.stringify(data),
+  })
+}
+
+export function completeChore(groupId: number, choreId: number) {
+  return request<ChoreResponse>(`/groups/${groupId}/chores/${choreId}/complete`, {
+    method: 'PATCH',
+  })
+}
+
+
+export function updateChore(
+  groupId: number,
+  choreId: number,
+  data: {
+    title?: string
+    description?: string
+    assignedUserId?: number
+    points?: number
+    dueDate?: string
+  },
+) {
+  return request<ChoreResponse>(`/groups/${groupId}/chores/${choreId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+
+export function deleteChore(groupId: number, choreId: number) {
+  return request<void>(`/groups/${groupId}/chores/${choreId}`, {
+    method: 'DELETE',
   })
 }

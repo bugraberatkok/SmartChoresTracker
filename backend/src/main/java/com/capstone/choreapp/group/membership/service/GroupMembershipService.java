@@ -1,5 +1,6 @@
 package com.capstone.choreapp.group.membership.service;
 
+import com.capstone.choreapp.chore.repository.ChoreRepository;
 import com.capstone.choreapp.group.membership.entity.GroupMembership;
 import com.capstone.choreapp.group.membership.entity.GroupRole;
 import com.capstone.choreapp.group.membership.exception.GroupAccessDeniedException;
@@ -30,6 +31,7 @@ public class GroupMembershipService {
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
     private final GroupMembershipMapper groupMembershipMapper;
+    private final ChoreRepository choreRepository;
 
     private final GroupMembershipRepository groupMembershipRepository;
 
@@ -112,5 +114,77 @@ public class GroupMembershipService {
                 groupMembershipRepository.save(membership);
 
         return groupMembershipMapper.toResponse(savedMembership);
+    }
+
+    @Transactional
+    public GroupMemberResponse joinGroup(
+            Long groupId,
+            Long userId
+    ) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new GroupNotFoundException(groupId));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new UserNotFoundException("Authenticated user was not found")
+                );
+
+        if (groupMembershipRepository
+                .existsByUserIdAndGroupId(userId, groupId)) {
+            throw new UserAlreadyGroupMemberException();
+        }
+
+        GroupMembership membership =
+                groupMembershipMapper.toEntity(
+                        user,
+                        group,
+                        GroupRole.MEMBER
+                );
+
+        GroupMembership savedMembership =
+                groupMembershipRepository.save(membership);
+
+        return groupMembershipMapper.toResponse(savedMembership);
+    }
+
+
+    @Transactional
+    public void removeMember(
+            Long groupId,
+            Long requesterId,
+            Long targetUserId
+    ) {
+        GroupMembership requester =
+                requireManager(groupId, requesterId);
+
+        GroupMembership target =
+                groupMembershipRepository
+                        .findByUserIdAndGroupId(targetUserId, groupId)
+                        .orElseThrow(
+                                GroupMembershipNotFoundException::new
+                        );
+
+        // Owner hiçbir zaman kicklenemez
+        if (target.getRole() == GroupRole.OWNER) {
+            throw new GroupAccessDeniedException();
+        }
+
+        // Kendini kicklemek yok
+        if (requesterId.equals(targetUserId)) {
+            throw new GroupAccessDeniedException();
+        }
+
+        // ADMIN başka ADMIN'i kickleyemez
+        if (requester.getRole() == GroupRole.ADMIN
+                && target.getRole() == GroupRole.ADMIN) {
+            throw new GroupAccessDeniedException();
+        }
+
+        choreRepository.unassignUserFromGroupChores(
+                groupId,
+                targetUserId
+        );
+
+        groupMembershipRepository.delete(target);
     }
 }

@@ -17,6 +17,8 @@ import com.capstone.choreapp.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
 import java.util.List;
 import com.capstone.choreapp.chore.exception.ChoreNotFoundException;
 
@@ -171,6 +173,60 @@ public class ChoreService {
 
             chore.setAssignedUser(assignedUser);
         }
+
+        return choreMapper.toResponse(chore);
+    }
+
+    @Transactional
+    public void deleteChore(
+            Long groupId,
+            Long choreId,
+            Long requesterId
+    ) {
+        groupMembershipService.requireManager(groupId, requesterId);
+
+        Chore chore = choreRepository.findById(choreId)
+                .orElseThrow(() -> new ChoreNotFoundException(choreId));
+
+        if (!chore.getGroup().getId().equals(groupId)) {
+            throw new ChoreNotFoundException(choreId);
+        }
+
+        choreRepository.delete(chore);
+    }
+
+    @Transactional
+    public ChoreResponse completeChore(
+            Long groupId,
+            Long choreId,
+            Long requesterId
+    ) {
+        // Grubun dışındaki biri chore tamamlayamasın
+        groupMembershipService.requireMember(groupId, requesterId);
+
+        Chore chore = choreRepository.findById(choreId)
+                .orElseThrow(() -> new ChoreNotFoundException(choreId));
+
+        if (!chore.getGroup().getId().equals(groupId)) {
+            throw new ChoreNotFoundException(choreId);
+        }
+
+        boolean isAssignedUser =
+                chore.getAssignedUser() != null
+                        && chore.getAssignedUser().getId().equals(requesterId);
+
+        // Assigned user değilse OWNER / ADMIN olmak zorunda
+        if (!isAssignedUser) {
+            groupMembershipService.requireManager(groupId, requesterId);
+        }
+
+        // Tekrar request gelirse sorun çıkarmasın
+        if (chore.getStatus() == ChoreStatus.COMPLETED) {
+            return choreMapper.toResponse(chore);
+        }
+
+        chore.setStatus(ChoreStatus.COMPLETED);
+        chore.setCompletedAt(Instant.now());
 
         return choreMapper.toResponse(chore);
     }

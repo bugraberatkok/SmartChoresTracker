@@ -78,4 +78,35 @@ public class ChoreController {
                 request
         );
     }
+
+    @DeleteMapping("/{choreId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteChore(
+            @PathVariable Long groupId,
+            @PathVariable Long choreId,
+            Authentication authentication
+    ) {
+        Long requesterId = Long.valueOf(authentication.getName());
+
+        choreService.deleteChore(
+                groupId,
+                choreId,
+                requesterId
+        );
+    }
+
+    @PatchMapping("/{choreId}/complete")
+    public ChoreResponse completeChore(
+            @PathVariable Long groupId,
+            @PathVariable Long choreId,
+            Authentication authentication
+    ) {
+        Long requesterId = Long.valueOf(authentication.getName());
+
+        return choreService.completeChore(
+                groupId,
+                choreId,
+                requesterId
+        );
+    }
 }
