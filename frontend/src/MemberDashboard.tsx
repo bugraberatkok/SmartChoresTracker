@@ -238,13 +238,19 @@ export default function MemberDashboard({ household, member, onBack }: Props) {
       )
       setPoints((value) => value + (updated.points ?? 0))
 
-      const refreshedLeaderboard = await fetchLeaderboard(household.id)
-      setLeaderboard(refreshedLeaderboard)
-      // refresh progress after completion
-      fetchWeeklyProgress(household.id, member.id)
-        .then(setProgressData)
+      // Chore completion already succeeded; refresh gamification data separately
+      void Promise.all([
+        fetchLeaderboard(household.id),
+        fetchWeeklyProgress(household.id, member.id),
+        fetchAchievements(household.id, member.id),
+      ])
+        .then(([refreshedLeaderboard, refreshedProgress, refreshedAchievements]) => {
+          setLeaderboard(refreshedLeaderboard)
+          setProgressData(refreshedProgress)
+          setAchievements(refreshedAchievements)
+        })
         .catch(() => {
-          // chore completion already succeeded
+          // Do not report the chore completion as failed if only a refresh fails.
         })
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'Failed to complete chore')

@@ -93,10 +93,13 @@ export default function MembersPage({
             const isCurrentUser = member.id === currentUserId
             const canOpen = household.isAdmin || isCurrentUser
 
+            const currentUserIsOwner = household.ownerId === currentUserId
+
             const canKick =
               household.isAdmin &&
               member.role !== 'OWNER' &&
-              !isCurrentUser
+              !isCurrentUser &&
+              (currentUserIsOwner || member.role === 'MEMBER')
 
             return (
               <div key={member.id} style={{ display: 'flex', gap: '0.6rem', alignItems: 'stretch', width: '100%' }}>

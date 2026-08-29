@@ -203,6 +203,15 @@ public class ChoreService {
             if (!request.recurring()) {
                 chore.getRecurrenceDays().clear();
                 chore.getCompletedDates().clear();
+                chore.setRecurrenceStartDate(null);
+            } else if (chore.getRecurrenceStartDate() == null) {
+                LocalDate startDate = chore.getDueDate() != null
+                        ? chore.getDueDate()
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        : LocalDate.now(ZoneId.systemDefault());
+
+                chore.setRecurrenceStartDate(startDate);
             }
         }
 
