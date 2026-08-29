@@ -111,6 +111,7 @@ export interface GroupResponse {
   name: string
   description: string | null
   ownerId: number
+  inviteCode: string | null
   createdAt: string
   updatedAt: string
 }
@@ -144,6 +145,12 @@ export function deleteGroup(groupId: number) {
   return request<void>(`/groups/${groupId}`, { method: 'DELETE' })
 }
 
+export function getOrCreateInviteCode(groupId: number) {
+  return request<{ inviteCode: string }>(`/groups/${groupId}/invite-code`, {
+    method: 'POST',
+  })
+}
+
 // ---- Group Members --------------------------------------------------------
 
 export interface GroupMemberResponse {
@@ -166,9 +173,11 @@ export function addGroupMember(groupId: number, email: string) {
   })
 }
 
-export function joinGroup(groupId: number) {
-  return request<GroupMemberResponse>(`/groups/${groupId}/members/join`, {
+
+export function joinGroupByCode(inviteCode: string) {
+  return request<GroupMemberResponse>('/groups/join-by-code', {
     method: 'POST',
+    body: JSON.stringify({ inviteCode }),
   })
 }
 
@@ -193,6 +202,7 @@ export interface ChoreResponse {
   recurring: boolean
   recurrenceDays: string[]
   completedDates: string[]
+  recurrenceStartDate: string | null
   dueDate: string | null
   completedAt: string | null
   createdAt: string
@@ -259,4 +269,50 @@ export function deleteChore(groupId: number, choreId: number) {
   return request<void>(`/groups/${groupId}/chores/${choreId}`, {
     method: 'DELETE',
   })
+}
+
+export interface LeaderboardEntryResponse {
+  userId: number
+  name: string
+  totalPoints: number
+  completedChores: number
+  rank: number
+}
+
+export function fetchLeaderboard(groupId: number) {
+  return request<LeaderboardEntryResponse[]>(
+      `/groups/${groupId}/gamification/leaderboard`,
+  )
+}
+
+export interface AchievementResponse {
+  code: string
+  name: string
+  description: string
+  icon: string
+  requiredValue: number
+  currentValue: number
+  earned: boolean
+}
+
+
+
+export interface ProgressDayResponse {
+  date: string
+  day: string
+  completedChores: number
+}
+
+export function fetchAchievements(groupId: number, memberUserId: number) {
+  return request<AchievementResponse[]>(
+    `/groups/${groupId}/gamification/members/${memberUserId}/achievements`,
+  )
+}
+
+
+
+export function fetchWeeklyProgress(groupId: number, memberUserId: number) {
+  return request<ProgressDayResponse[]>(
+    `/groups/${groupId}/gamification/members/${memberUserId}/progress`,
+  )
 }

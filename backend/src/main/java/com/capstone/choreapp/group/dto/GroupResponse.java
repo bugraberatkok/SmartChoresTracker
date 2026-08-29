@@ -7,6 +7,7 @@ public record GroupResponse(
         String name,
         String description,
         Long ownerId,
+        String inviteCode,
         Instant createdAt,
         Instant updatedAt
 ) {

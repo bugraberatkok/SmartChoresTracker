@@ -8,4 +8,5 @@ import java.util.Optional;
 public interface GroupRepository extends JpaRepository<Group, Long> {
     List<Group> findAllByOwnerId(Long ownerId);
     Optional<Group> findByIdAndOwnerId(Long groupId, Long ownerId);
+    Optional<Group> findByInviteCode(String inviteCode);
 }

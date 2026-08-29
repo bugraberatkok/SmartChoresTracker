@@ -22,6 +22,7 @@ export type Household = {
   name: string
   description?: string
   ownerId: number
+  inviteCode?: string
   emoji: string       // derived from name / default
   isAdmin: boolean    // ownerId === currentUserId
   members: Member[]   // fetched separately

@@ -68,6 +68,9 @@ public class Chore {
     @Column(name = "completion_date", nullable = false)
     private Set<LocalDate> completedDates = new HashSet<>();
 
+    @Column(name = "recurrence_start_date")
+    private LocalDate recurrenceStartDate;
+
     @Column(name = "due_date")
     private Instant dueDate;
 

@@ -31,6 +31,9 @@ public class Group {
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
+    @Column(name = "invite_code", unique = true, length = 12)
+    private String inviteCode;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

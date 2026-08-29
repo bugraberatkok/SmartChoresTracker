@@ -26,6 +26,7 @@ public class GroupMapper {
                 group.getName(),
                 group.getDescription(),
                 group.getOwner().getId(),
+                group.getInviteCode(),
                 group.getCreatedAt(),
                 group.getUpdatedAt()
         );

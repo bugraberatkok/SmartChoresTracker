@@ -22,6 +22,7 @@ function toHousehold(group: GroupResponse, currentUserId: number): Household {
     name: group.name,
     description: group.description ?? undefined,
     ownerId: group.ownerId,
+    inviteCode: group.inviteCode ?? undefined,
     emoji: deriveEmoji(group.id),
     isAdmin: group.ownerId === currentUserId,
     members: [],
@@ -58,12 +59,11 @@ function App() {
   const [households, setHouseholds] = useState<Household[]>([])
   const [selectedHousehold, setSelectedHousehold] = useState<Household | null>(null)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(isLoggedIn())
 
   // ---- load current user & groups after login ----------------------------
 
   const loadUserAndGroups = useCallback(async () => {
-    setLoading(true)
     try {
       const user = await fetchCurrentUser()
       setCurrentUser(user)
@@ -94,9 +94,9 @@ function App() {
 
   // On mount, if we have a saved token, try to restore the session
   useEffect(() => {
-    if (isLoggedIn()) {
-      loadUserAndGroups()
-    }
+    if (!isLoggedIn()) return
+
+    void Promise.resolve().then(loadUserAndGroups)
   }, [loadUserAndGroups])
 
   // ---- auth handlers -----------------------------------------------------
@@ -104,6 +104,7 @@ function App() {
   const handleLogin = (token: string, user: AuthUser) => {
     setToken(token)
     setCurrentUser(user)
+    setLoading(true)
     loadUserAndGroups()
     setPage('households')
   }

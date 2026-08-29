@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { HomeMark } from './LoginPage'
 import type { Household } from './types'
 import { deriveInitials } from './types'
-import { createGroup, joinGroup, fetchGroupById, updateGroup, deleteGroup, ApiError, type AuthUser, type GroupResponse } from './api'
+import { createGroup, joinGroupByCode, fetchGroups, updateGroup, deleteGroup, ApiError, type AuthUser, type GroupResponse } from './api'
 
 type Props = {
   households: Household[]
@@ -47,12 +47,21 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
     setError('')
     setSubmitting(true)
     const data = new FormData(event.currentTarget)
-    const groupId = Number(data.get('code'))
+    const inviteCode = String(data.get('code') ?? '').trim().toUpperCase()
 
     try {
-      await joinGroup(groupId)
-      const group = await fetchGroupById(groupId)
-      onGroupCreated(group)
+      await joinGroupByCode(inviteCode)
+
+      const groups = await fetchGroups()
+      const joinedGroup = groups.find(
+        (group) => !households.some((household) => household.id === group.id),
+      )
+
+      if (!joinedGroup) {
+        throw new Error('Joined household could not be loaded')
+      }
+
+      onGroupCreated(joinedGroup)
       setDialog(null)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to join household')
@@ -130,7 +139,7 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
           ))}
 
           <button className="add-household-card" type="button" onClick={() => { setDialog('create'); setError('') }}><span className="plus-icon">+</span><strong>Create household</strong><small>Start a new shared space</small></button>
-          <button className="add-household-card" type="button" onClick={() => { setDialog('join'); setError('') }}><span className="plus-icon">+</span><strong>Join a household</strong><small>Enter a group ID</small></button>
+          <button className="add-household-card" type="button" onClick={() => { setDialog('join'); setError('') }}><span className="plus-icon">+</span><strong>Join a household</strong><small>Enter an invite code</small></button>
         </div>
       </section>
 
@@ -140,7 +149,7 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
             <button className="modal-close" type="button" onClick={() => setDialog(null)} aria-label="Close">×</button>
             <span className="modal-icon">{dialog === 'create' ? '🏡' : '🔑'}</span>
             <h2 id="modal-title">{dialog === 'create' ? 'Create a household' : 'Join a household'}</h2>
-            <p>{dialog === 'create' ? 'Give your shared space a name and an optional description.' : 'Enter the group ID provided by your household admin.'}</p>
+            <p>{dialog === 'create' ? 'Give your shared space a name and an optional description.' : 'Enter the invite code provided by your household admin.'}</p>
             <form onSubmit={dialog === 'create' ? handleCreate : handleJoin}>
               {dialog === 'create' ? <>
                 <label htmlFor="household-name">Household name</label>
@@ -148,8 +157,8 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
                 <label htmlFor="household-desc">Description (optional)</label>
                 <input className="modal-input" id="household-desc" name="description" placeholder="e.g. Our family home" />
               </> : <>
-                <label htmlFor="household-code">Group ID</label>
-                <input className="modal-input code-input" id="household-code" name="code" type="number" placeholder="e.g. 1" required />
+                <label htmlFor="household-code">Invite code</label>
+                <input className="modal-input code-input" id="household-code" name="code" type="text" maxLength={12} placeholder="e.g. A7F3C9" autoCapitalize="characters" required />
               </>}
               {error && <p className="form-message error-message" role="alert">{error}</p>}
               <button className="submit-button" type="submit" disabled={submitting}>{dialog === 'create' ? 'Create household' : 'Join household'} <span>→</span></button>
@@ -186,7 +195,7 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
             <h2 id="confirm-delete-title">Delete household?</h2>
             <p>Are you sure you want to delete <strong>{deletingHousehold.name}</strong>? Its memberships and chores will be permanently deleted.</p>
             {error && <p className="form-message error-message" role="alert">{error}</p>}
-            <div className="modal-row">
+            <div className="modal-row delete-actions">
               <button className="back-button" type="button" onClick={() => setDeletingHousehold(null)}>Cancel</button>
               <button className="submit-button danger-button" type="button" onClick={handleDelete} disabled={submitting}>{submitting ? 'Deleting...' : 'Yes, delete household'}</button>
             </div>

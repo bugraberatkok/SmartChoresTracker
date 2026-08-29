@@ -1,6 +1,7 @@
 package com.capstone.choreapp.group.service;
 
 import java.util.List;
+import java.util.UUID;
 
 import com.capstone.choreapp.chore.repository.ChoreRepository;
 import com.capstone.choreapp.group.membership.service.GroupMembershipService;
@@ -49,6 +50,14 @@ public class GroupService {
                 );
 
         Group group = groupMapper.toEntity(request, owner);
+
+        String inviteCode = UUID.randomUUID()
+                .toString()
+                .replace("-", "")
+                .substring(0, 6)
+                .toUpperCase();
+
+        group.setInviteCode(inviteCode);
 
         Group savedGroup = groupRepository.save(group);
 
@@ -111,6 +120,36 @@ public class GroupService {
         groupMembershipRepository.deleteAllByGroupId(groupId);
 
         groupRepository.delete(group);
+    }
+
+    @Transactional
+    public String getOrCreateInviteCode(
+            Long groupId,
+            Long requesterId
+    ) {
+        groupMembershipService.requireMember(
+                groupId,
+                requesterId
+        );
+
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() ->
+                        new GroupNotFoundException(groupId)
+                );
+
+        if (group.getInviteCode() == null
+                || group.getInviteCode().isBlank()) {
+
+            String inviteCode = UUID.randomUUID()
+                    .toString()
+                    .replace("-", "")
+                    .substring(0, 6)
+                    .toUpperCase();
+
+            group.setInviteCode(inviteCode);
+        }
+
+        return group.getInviteCode();
     }
 
 

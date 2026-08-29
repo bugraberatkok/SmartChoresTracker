@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { HomeMark } from './LoginPage'
 import type { Household, Member } from './types'
-import { ApiError, removeGroupMember } from './api'
+import { ApiError, removeGroupMember, getOrCreateInviteCode } from './api'
 
 type Props = {
   household: Household
@@ -17,6 +18,43 @@ export default function MembersPage({
   onMemberRemoved,
   onSelectMember,
 }: Props) {
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [inviteCode, setInviteCode] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const handleShowInviteCode = async () => {
+    setInviteModalOpen(true)
+    setInviteError('')
+    setCopied(false)
+
+    if (inviteCode) return
+
+    setInviteLoading(true)
+    try {
+      const response = await getOrCreateInviteCode(household.id)
+      setInviteCode(response.inviteCode)
+    } catch (err) {
+      setInviteError(
+        err instanceof ApiError ? err.message : 'Failed to load invite code',
+      )
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  const handleCopyInviteCode = async () => {
+    if (!inviteCode) return
+    try {
+      await navigator.clipboard.writeText(inviteCode)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      setInviteError('Could not copy invite code')
+    }
+  }
+
   const handleRemoveMember = async (member: Member) => {
     if (!window.confirm(`Remove ${member.name} from this household?`)) return
 
@@ -36,7 +74,13 @@ export default function MembersPage({
       </header>
       <section className="page-content members-content">
         <button className="back-button" type="button" onClick={onBack}>← All households</button>
-        <div className="page-heading members-heading"><div><span className="eyebrow">Household overview</span><h1>Members</h1><p>See everyone in {household.name} and how they're doing.</p></div><div className="members-count"><strong>{household.members.length}</strong><span>members</span></div></div>
+        <div className="page-heading members-heading">
+          <div><span className="eyebrow">Household overview</span><h1>Members</h1><p>See everyone in {household.name} and how they're doing.</p></div>
+          <div className="members-heading-actions">
+            <button className="invite-code-button" type="button" onClick={handleShowInviteCode}>🔑 Invite code</button>
+            <div className="members-count"><strong>{household.members.length}</strong><span>members</span></div>
+          </div>
+        </div>
         <div className="members-list">
           {household.members.length === 0 && (
             <div className="empty-state">
@@ -68,6 +112,29 @@ export default function MembersPage({
           })}
         </div>
       </section>
+
+      {inviteModalOpen && (
+        <div className="modal-backdrop" onMouseDown={() => setInviteModalOpen(false)}>
+          <section className="modal invite-code-modal" role="dialog" aria-modal="true" aria-labelledby="invite-code-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" onClick={() => setInviteModalOpen(false)} aria-label="Close">×</button>
+            <span className="modal-icon">🔑</span>
+            <h2 id="invite-code-title">Household invite code</h2>
+            <p>Share this code with someone you want to invite to {household.name}.</p>
+            {inviteLoading ? (
+              <div className="invite-code-loading">Loading invite code...</div>
+            ) : inviteError ? (
+              <p className="form-message error-message" role="alert">{inviteError}</p>
+            ) : (
+              <>
+                <div className="invite-code-display">{inviteCode}</div>
+                <button className="submit-button invite-copy-button" type="button" onClick={handleCopyInviteCode}>
+                  {copied ? 'Copied ✓' : 'Copy invite code'}
+                </button>
+              </>
+            )}
+          </section>
+        </div>
+      )}
 
     </main>
   )

@@ -84,11 +84,39 @@ public class ChoreService {
                         ? request.points()
                         : 0
         );
-        chore.setIcon(request.icon() == null || request.icon().isBlank() ? "🧹" : request.icon());
+        chore.setIcon(
+                request.icon() == null || request.icon().isBlank()
+                        ? "🧹"
+                        : request.icon()
+        );
+
         chore.setRecurring(Boolean.TRUE.equals(request.recurring()));
-        chore.setRecurrenceDays(request.recurrenceDays() == null
-                ? new HashSet<>()
-                : new HashSet<>(request.recurrenceDays()));
+
+        chore.setRecurrenceDays(
+                request.recurrenceDays() == null
+                        ? new HashSet<>()
+                        : new HashSet<>(request.recurrenceDays())
+        );
+
+        if (chore.isRecurring()) {
+            LocalDate startDate = request.dueDate() != null
+                    ? request.dueDate()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                    : LocalDate.now(ZoneId.systemDefault());
+
+            chore.setRecurrenceStartDate(startDate);
+        } else {
+            chore.setRecurrenceStartDate(null);
+        }
+
+        if (chore.isRecurring() && chore.getRecurrenceDays().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Recurring chore must have at least one recurrence day"
+            );
+        }
+
+
         chore.setDueDate(request.dueDate());
 
         Chore savedChore = choreRepository.save(chore);
@@ -171,10 +199,21 @@ public class ChoreService {
 
         if (request.recurring() != null) {
             chore.setRecurring(request.recurring());
+
+            if (!request.recurring()) {
+                chore.getRecurrenceDays().clear();
+                chore.getCompletedDates().clear();
+            }
         }
 
         if (request.recurrenceDays() != null) {
             chore.setRecurrenceDays(new HashSet<>(request.recurrenceDays()));
+        }
+
+        if (chore.isRecurring() && chore.getRecurrenceDays().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Recurring chore must have at least one recurrence day"
+            );
         }
 
         if (request.assignedUserId() != null) {
@@ -245,8 +284,23 @@ public class ChoreService {
             LocalDate date = occurrenceDate != null
                     ? occurrenceDate
                     : LocalDate.now(ZoneId.systemDefault());
+
+            if (!chore.getRecurrenceDays().contains(date.getDayOfWeek())) {
+                throw new IllegalArgumentException(
+                        "This chore is not scheduled for the selected date"
+                );
+            }
+
+            if (chore.getRecurrenceStartDate() != null
+                    && date.isBefore(chore.getRecurrenceStartDate())) {
+                throw new IllegalArgumentException(
+                        "This chore cannot be completed before its recurrence start date"
+                );
+            }
+
             chore.getCompletedDates().add(date);
             chore.setCompletedAt(Instant.now());
+
             return choreMapper.toResponse(chore);
         }
 

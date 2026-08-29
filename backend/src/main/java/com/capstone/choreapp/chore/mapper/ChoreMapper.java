@@ -23,6 +23,7 @@ public class ChoreMapper {
                 chore.isRecurring(),
                 chore.getRecurrenceDays(),
                 chore.getCompletedDates(),
+                chore.getRecurrenceStartDate(),
                 chore.getDueDate(),
                 chore.getCompletedAt(),
                 chore.getCreatedAt(),

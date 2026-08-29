@@ -2,6 +2,9 @@ package com.capstone.choreapp.group.controller;
 
 import com.capstone.choreapp.group.dto.CreateGroupRequest;
 import com.capstone.choreapp.group.dto.GroupResponse;
+import com.capstone.choreapp.group.membership.dto.GroupMemberResponse;
+import com.capstone.choreapp.group.membership.dto.JoinGroupByCodeRequest;
+import com.capstone.choreapp.group.membership.service.GroupMembershipService;
 import com.capstone.choreapp.group.service.GroupService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
+
 import com.capstone.choreapp.group.dto.UpdateGroupRequest;
 
 @RestController
@@ -17,6 +22,7 @@ import com.capstone.choreapp.group.dto.UpdateGroupRequest;
 public class GroupController {
 
     private final GroupService groupService;
+    private final GroupMembershipService groupMembershipService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -68,6 +74,39 @@ public class GroupController {
 
         groupService.deleteGroup(groupId, ownerId);
     }
+
+    @PostMapping("/join-by-code")
+    @ResponseStatus(HttpStatus.CREATED)
+    public GroupMemberResponse joinByInviteCode(
+            @Valid @RequestBody JoinGroupByCodeRequest request,
+            Authentication authentication
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+
+        return groupMembershipService.joinByInviteCode(
+                request.inviteCode(),
+                userId
+        );
+    }
+
+    @PostMapping("/{groupId}/invite-code")
+    public Map<String, String> getOrCreateInviteCode(
+            @PathVariable Long groupId,
+            Authentication authentication
+    ) {
+        Long requesterId =
+                Long.valueOf(authentication.getName());
+
+        String inviteCode =
+                groupService.getOrCreateInviteCode(
+                        groupId,
+                        requesterId
+                );
+
+        return Map.of("inviteCode", inviteCode);
+    }
+
+
 }
 
 

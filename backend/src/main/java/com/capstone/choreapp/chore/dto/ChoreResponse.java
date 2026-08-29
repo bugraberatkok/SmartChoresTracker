@@ -20,6 +20,7 @@ public record ChoreResponse(
         boolean recurring,
         Set<DayOfWeek> recurrenceDays,
         Set<LocalDate> completedDates,
+        LocalDate recurrenceStartDate,
         Instant dueDate,
         Instant completedAt,
         Instant createdAt,
