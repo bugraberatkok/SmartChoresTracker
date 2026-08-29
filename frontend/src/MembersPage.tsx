@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { HomeMark } from './LoginPage'
 import type { Household, Member } from './types'
-import { ApiError, deleteGroup, removeGroupMember } from './api'
+import { ApiError, removeGroupMember, getOrCreateInviteCode } from './api'
 
 type Props = {
   household: Household
   currentUserId: number | null
   onBack: () => void
-  onHouseholdDeleted: () => void
   onMemberRemoved: (userId: number) => void
   onSelectMember: (member: Member) => void
 }
@@ -16,21 +15,43 @@ export default function MembersPage({
   household,
   currentUserId,
   onBack,
-  onHouseholdDeleted,
   onMemberRemoved,
   onSelectMember,
 }: Props) {
-  const [showDeleteHousehold, setShowDeleteHousehold] = useState(false)
-  const [deleteError, setDeleteError] = useState('')
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [inviteCode, setInviteCode] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  const [copied, setCopied] = useState(false)
 
-  const handleDeleteHousehold = async () => {
-    setDeleteError('')
+  const handleShowInviteCode = async () => {
+    setInviteModalOpen(true)
+    setInviteError('')
+    setCopied(false)
+
+    if (inviteCode) return
+
+    setInviteLoading(true)
     try {
-      await deleteGroup(household.id)
-      setShowDeleteHousehold(false)
-      onHouseholdDeleted()
+      const response = await getOrCreateInviteCode(household.id)
+      setInviteCode(response.inviteCode)
     } catch (err) {
-      setDeleteError(err instanceof ApiError ? err.message : 'Failed to delete household')
+      setInviteError(
+        err instanceof ApiError ? err.message : 'Failed to load invite code',
+      )
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  const handleCopyInviteCode = async () => {
+    if (!inviteCode) return
+    try {
+      await navigator.clipboard.writeText(inviteCode)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      setInviteError('Could not copy invite code')
     }
   }
 
@@ -53,7 +74,13 @@ export default function MembersPage({
       </header>
       <section className="page-content members-content">
         <button className="back-button" type="button" onClick={onBack}>← All households</button>
-        <div className="page-heading members-heading"><div><span className="eyebrow">Household overview</span><h1>Members</h1><p>See everyone in {household.name} and how they're doing.</p></div><div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}><div className="members-count"><strong>{household.members.length}</strong><span>members</span></div>{household.ownerId === currentUserId && <button type="button" onClick={() => { setDeleteError(''); setShowDeleteHousehold(true) }} style={{ border: '1px solid #c65a5a', borderRadius: '10px', padding: '0.65rem 0.9rem', background: 'transparent', cursor: 'pointer' }}>Delete household</button>}</div></div>
+        <div className="page-heading members-heading">
+          <div><span className="eyebrow">Household overview</span><h1>Members</h1><p>See everyone in {household.name} and how they're doing.</p></div>
+          <div className="members-heading-actions">
+            <button className="invite-code-button" type="button" onClick={handleShowInviteCode}>🔑 Invite code</button>
+            <div className="members-count"><strong>{household.members.length}</strong><span>members</span></div>
+          </div>
+        </div>
         <div className="members-list">
           {household.members.length === 0 && (
             <div className="empty-state">
@@ -66,10 +93,13 @@ export default function MembersPage({
             const isCurrentUser = member.id === currentUserId
             const canOpen = household.isAdmin || isCurrentUser
 
+            const currentUserIsOwner = household.ownerId === currentUserId
+
             const canKick =
               household.isAdmin &&
               member.role !== 'OWNER' &&
-              !isCurrentUser
+              !isCurrentUser &&
+              (currentUserIsOwner || member.role === 'MEMBER')
 
             return (
               <div key={member.id} style={{ display: 'flex', gap: '0.6rem', alignItems: 'stretch', width: '100%' }}>
@@ -86,21 +116,29 @@ export default function MembersPage({
         </div>
       </section>
 
-      {showDeleteHousehold && household.ownerId === currentUserId && (
-        <div className="modal-backdrop" onMouseDown={() => setShowDeleteHousehold(false)}>
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="delete-household-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="modal-close" type="button" onClick={() => setShowDeleteHousehold(false)}>×</button>
-            <span className="modal-icon">🏚</span>
-            <h2 id="delete-household-title">Delete household?</h2>
-            <p><strong>{household.name}</strong>, its memberships, and all chores inside it will be permanently deleted.</p>
-            {deleteError && <p className="form-message error-message" role="alert">{deleteError}</p>}
-            <div className="modal-row">
-              <button className="back-button" type="button" onClick={() => setShowDeleteHousehold(false)}>Cancel</button>
-              <button className="submit-button" type="button" onClick={handleDeleteHousehold}>Delete household</button>
-            </div>
+      {inviteModalOpen && (
+        <div className="modal-backdrop" onMouseDown={() => setInviteModalOpen(false)}>
+          <section className="modal invite-code-modal" role="dialog" aria-modal="true" aria-labelledby="invite-code-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" onClick={() => setInviteModalOpen(false)} aria-label="Close">×</button>
+            <span className="modal-icon">🔑</span>
+            <h2 id="invite-code-title">Household invite code</h2>
+            <p>Share this code with someone you want to invite to {household.name}.</p>
+            {inviteLoading ? (
+              <div className="invite-code-loading">Loading invite code...</div>
+            ) : inviteError ? (
+              <p className="form-message error-message" role="alert">{inviteError}</p>
+            ) : (
+              <>
+                <div className="invite-code-display">{inviteCode}</div>
+                <button className="submit-button invite-copy-button" type="button" onClick={handleCopyInviteCode}>
+                  {copied ? 'Copied ✓' : 'Copy invite code'}
+                </button>
+              </>
+            )}
           </section>
         </div>
       )}
+
     </main>
   )
 }

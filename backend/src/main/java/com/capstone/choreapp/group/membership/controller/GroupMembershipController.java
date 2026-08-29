@@ -47,20 +47,6 @@ public class GroupMembershipController {
         );
     }
 
-    @PostMapping("/join")
-    @ResponseStatus(HttpStatus.CREATED)
-    public GroupMemberResponse joinGroup(
-            @PathVariable Long groupId,
-            Authentication authentication
-    ) {
-        Long userId = Long.valueOf(authentication.getName());
-
-        return groupMembershipService.joinGroup(
-                groupId,
-                userId
-        );
-    }
-
     @DeleteMapping("/{userId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removeMember(

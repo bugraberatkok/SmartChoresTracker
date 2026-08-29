@@ -1,51 +1,43 @@
 # Smart Chores Tracker
 
-Smart Chores Tracker is a full-stack household/group chore management application built for a Capstone project.
+Smart Chores Tracker is a full-stack household chore management application developed as a Capstone project. It combines collaborative task management with gamification features such as points, leaderboards, achievements, and weekly progress tracking.
 
-The application allows users to create shared households, manage members, assign chores, complete tasks, track chore points, and provides a foundation for a larger gamification system with leaderboards, badges, progress tracking, recurring chores, and notifications.
-
-> The repository name still contains `choreappBackend`, but the repository is now a **monorepo** containing both the Spring Boot backend and the React frontend.
+The project is organized as a **modular monolith** with a Spring Boot backend and a React + TypeScript frontend.
 
 ---
 
 ## Project Status
 
-The core household and chore management flow is currently working end-to-end.
+The main MVP flow is implemented and working end-to-end.
 
-### Working features
+### Implemented
 
-- User registration
-- User login
+- User registration and login
 - JWT authentication
 - Protected API endpoints
 - Current-user endpoint
-- Household creation
-- Household listing for both owners and members
-- Household detail access for members
-- Household update
-- Household deletion
-- Automatic `OWNER` membership when a household is created
+- Household creation, listing, update, and deletion
+- `OWNER / ADMIN / MEMBER` authorization
+- Automatic owner membership on household creation
 - Household member listing
 - Add member by email
-- Self-join household flow using group ID
-- Remove/kick a member
-- `OWNER / ADMIN / MEMBER` authorization model
-- Chore creation
-- Chore assignment to a household member
-- Chore listing
-- Member-specific chore dashboards
-- Chore update
-- Chore deletion
-- Chore completion
-- Persistent completion state in PostgreSQL
+- Secure household join using invite codes
+- Lazy invite-code generation for existing households
+- Remove/kick members with role-aware authorization
+- Chore creation, assignment, update, deletion, and completion
+- Normal and recurring chores
+- Recurrence-day validation
+- Recurrence start-date validation
+- Per-occurrence completion tracking for recurring chores
 - Chore points
-- Frontend member point totals derived from completed chores
-- Frontend member chore counts
-- Frontend permission-aware controls
-- Modal-based chore creation/edit/delete flow
-- Modal-based household deletion flow
-
-The main unfinished area is the **persistent gamification module**.
+- Household leaderboard
+- Shared-rank handling for equal scores
+- Achievement/trophy system
+- Weekly completion progress
+- React permission-aware UI
+- Invite-code modal and copy flow
+- Backend unit tests for critical business logic
+- Frontend production build and ESLint validation
 
 ---
 
@@ -62,7 +54,9 @@ The main unfinished area is the **persistent gamification module**.
 - Jakarta Validation
 - PostgreSQL
 - Lombok
-- Maven / Maven Wrapper
+- Maven
+- JUnit 5
+- Mockito
 
 ### Frontend
 
@@ -71,113 +65,62 @@ The main unfinished area is the **persistent gamification module**.
 - Vite
 - CSS
 - Fetch API
-
-### Development Database
-
-- PostgreSQL
+- ESLint
 
 ---
 
 ## Repository Structure
 
 ```text
-choreappBackend/
+SmartChoresTracker/
 ├── README.md
 ├── backend/
 │   ├── pom.xml
 │   ├── mvnw
 │   ├── mvnw.cmd
 │   └── src/
-│       └── main/
-│           ├── java/com/capstone/choreapp/
-│           └── resources/
-│
+│       ├── main/
+│       └── test/
 └── frontend/
     ├── package.json
-    ├── package-lock.json
     ├── vite.config.ts
     └── src/
 ```
 
-The backend follows a feature-oriented modular monolith structure.
+The backend uses a feature-oriented modular-monolith structure:
 
 ```text
 com.capstone.choreapp
 ├── auth
-│   ├── controller
-│   ├── dto
-│   ├── exception
-│   └── service
-│
 ├── user
-│   ├── controller
-│   ├── dto
-│   ├── entity
-│   ├── exception
-│   └── repository
-│
 ├── group
-│   ├── controller
-│   ├── dto
-│   ├── entity
-│   ├── exception
-│   ├── mapper
-│   ├── repository
-│   ├── service
 │   └── membership
-│       ├── controller
-│       ├── dto
-│       ├── entity
-│       ├── exception
-│       ├── mapper
-│       ├── repository
-│       └── service
-│
 ├── chore
-│   ├── controller
-│   ├── dto
-│   ├── entity
-│   ├── exception
-│   ├── mapper
-│   ├── repository
-│   └── service
-│
+├── gamification
 ├── common
 │   └── exception
-│
 ├── config
 ├── security
 └── ChoreappApplication
 ```
 
-The purpose of this structure is to keep each feature as independent as possible. Future features such as gamification, recurring chores, and notifications should be added as separate modules instead of being mixed directly into authentication code.
+The goal is to keep business areas isolated so features can evolve without mixing unrelated logic into authentication or infrastructure code.
 
 ---
 
 ## Main Domain Model
 
-The current main entities are:
-
 ```text
 User
-Group
-GroupMembership
-Chore
-```
-
-Conceptually:
-
-```text
-User
- ├── owns Group
- ├── has GroupMembership
- ├── creates Chore
- └── can be assigned Chore
+ ├── owns / joins Groups
+ ├── creates Chores
+ └── can be assigned Chores
 
 Group
  ├── owner -> User
  ├── memberships -> GroupMembership
- └── chores -> Chore
+ ├── chores -> Chore
+ └── inviteCode
 
 GroupMembership
  ├── user -> User
@@ -185,25 +128,18 @@ GroupMembership
  └── role -> OWNER / ADMIN / MEMBER
 
 Chore
- ├── group -> Group
- ├── createdBy -> User
- ├── assignedUser -> User (nullable)
- ├── status -> PENDING / COMPLETED
+ ├── group
+ ├── createdBy
+ ├── assignedUser
+ ├── status
  ├── points
  ├── dueDate
+ ├── recurring
+ ├── recurrenceDays
+ ├── recurrenceStartDate
+ ├── completedDates
  └── completedAt
 ```
-
-The database currently contains tables corresponding to the main entities, including:
-
-```text
-users
-chore_groups
-group_memberships
-chores
-```
-
-`chore_groups` is used instead of a generic SQL table name such as `group`.
 
 ---
 
@@ -217,29 +153,19 @@ Public endpoints:
 /api/auth/**
 ```
 
-All other API endpoints require authentication.
+All other endpoints require a valid access token.
 
-The JWT `sub` claim stores the authenticated **user ID**.
-
-Therefore backend controllers commonly resolve the authenticated user with:
+The authenticated user ID is stored in the JWT `sub` claim. Controllers can therefore resolve the user with:
 
 ```java
 Long userId = Long.valueOf(authentication.getName());
 ```
 
-The configured access-token lifetime is currently:
-
-```text
-45 minutes
-```
-
 ---
 
-## Authorization and Roles
+## Roles and Authorization
 
-Household authorization is centralized through membership checks.
-
-### Roles
+Roles:
 
 ```text
 OWNER
@@ -247,7 +173,7 @@ ADMIN
 MEMBER
 ```
 
-### Core authorization helpers
+Central authorization helpers:
 
 ```text
 requireMember()
@@ -255,26 +181,12 @@ requireManager()
 requireOwner()
 ```
 
-Their intended meaning:
-
-```text
-requireMember
-OWNER / ADMIN / MEMBER
-
-requireManager
-OWNER / ADMIN
-
-requireOwner
-OWNER only
-```
-
-### Current permission summary
-
 | Action | OWNER | ADMIN | MEMBER |
 |---|:---:|:---:|:---:|
 | View household | ✅ | ✅ | ✅ |
 | View members | ✅ | ✅ | ✅ |
-| View household chores | ✅ | ✅ | ✅ |
+| View chores | ✅ | ✅ | ✅ |
+| View/share invite code | ✅ | ✅ | ✅ |
 | Create chore | ✅ | ✅ | ❌ |
 | Edit chore | ✅ | ✅ | ❌ |
 | Delete chore | ✅ | ✅ | ❌ |
@@ -283,460 +195,51 @@ OWNER only
 | Add member by email | ✅ | ✅ | ❌ |
 | Kick MEMBER | ✅ | ✅ | ❌ |
 | Kick ADMIN | ✅ | ❌ | ❌ |
-| Kick OWNER | ❌ | ❌ | ❌ |
 | Delete household | ✅ | ❌ | ❌ |
 
-A user cannot kick themselves.
+A user cannot kick themselves. The household owner cannot be removed.
 
-When a member is removed from a household, chores assigned to that member are **unassigned** instead of deleting the chores.
+When a member is removed, chores assigned to that member are unassigned rather than deleted.
 
 ---
 
-## Household Membership Flows
+## Household Invite Flow
 
-There are currently two ways to become a member.
+New households receive a random invite code.
 
-### Manager adds an existing user
+Existing households that do not yet have one receive a code the first time a household member requests it.
+
+### Get or create invite code
 
 ```http
-POST /api/groups/{groupId}/members
+POST /api/groups/{groupId}/invite-code
 ```
 
-Example:
+Example response:
 
 ```json
 {
-  "email": "member@example.com"
+  "inviteCode": "A7F3C9"
 }
 ```
 
-The requester must be `OWNER` or `ADMIN`.
-
-The added user receives the `MEMBER` role.
-
-### Self-join
+### Join using invite code
 
 ```http
-POST /api/groups/{groupId}/members/join
+POST /api/groups/join-by-code
 ```
 
-The currently authenticated user joins the group as `MEMBER`.
-
-> **Important:** this is currently an MVP shortcut. A user who knows a valid group ID can attempt to join that household. This should be replaced by a secure invitation mechanism before treating the application as production-ready.
-
-Recommended future replacement:
-
-```text
-random invite code
-or
-signed invite link
-or
-join request + manager approval
-```
-
----
-
-# Running the Project Locally
-
-## Prerequisites
-
-Install:
-
-- Git
-- Java 21
-- PostgreSQL
-- Node.js + npm
-- IntelliJ IDEA is recommended for backend development, but not required
-
-You do not need to install Maven globally because the backend contains the Maven Wrapper.
-
----
-
-## 1. Clone the repository
-
-```bash
-git clone https://github.com/bugraberatkok/choreappBackend.git
-cd choreappBackend
-```
-
----
-
-## 2. Create the PostgreSQL database
-
-Start PostgreSQL and create an empty database.
-
-Recommended database name:
-
-```text
-choreapp
-```
-
-Example SQL:
-
-```sql
-CREATE DATABASE choreapp;
-```
-
-Do **not** manually create the application tables.
-
-The development configuration currently uses:
-
-```properties
-spring.jpa.hibernate.ddl-auto=update
-```
-
-Hibernate will create/update the tables from the entities when the backend starts.
-
----
-
-## 3. Backend Environment Variables
-
-The backend expects these environment variables:
-
-```text
-DB_URL
-DB_USERNAME
-DB_PASSWORD
-JWT_SECRET
-```
-
-Example values:
-
-```text
-DB_URL=jdbc:postgresql://localhost:5432/choreapp
-DB_USERNAME=postgres
-DB_PASSWORD=YOUR_POSTGRES_PASSWORD
-JWT_SECRET=YOUR_BASE64_ENCODED_SECRET
-```
-
-### What each variable means
-
-#### `DB_URL`
-
-JDBC connection string for PostgreSQL.
-
-Example:
-
-```text
-jdbc:postgresql://localhost:5432/choreapp
-```
-
-If another PostgreSQL port or database name is used, update this value.
-
-#### `DB_USERNAME`
-
-PostgreSQL username.
-
-Common local value:
-
-```text
-postgres
-```
-
-#### `DB_PASSWORD`
-
-Password belonging to the PostgreSQL user.
-
-Do not commit this value into Git.
-
-#### `JWT_SECRET`
-
-Secret key used to sign and validate JWT access tokens.
-
-The current backend expects this secret to be **Base64 encoded** and uses it with HMAC-SHA256 / HS256.
-
-A convenient way to generate a suitable local secret is:
-
-```bash
-python -c "import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
-```
-
-Copy the printed value into `JWT_SECRET`.
-
-Do not use a short human-readable password as the JWT secret and do not commit the secret.
-
----
-
-## 4. Configure Environment Variables in IntelliJ
-
-A convenient local setup is:
-
-```text
-Run
-→ Edit Configurations
-→ ChoreappApplication
-→ Environment variables
-```
-
-Add:
-
-```text
-DB_URL=jdbc:postgresql://localhost:5432/choreapp
-DB_USERNAME=postgres
-DB_PASSWORD=YOUR_PASSWORD
-JWT_SECRET=YOUR_BASE64_SECRET
-```
-
-Then run `ChoreappApplication`.
-
-Backend default address:
-
-```text
-http://localhost:8080
-```
-
----
-
-## 5. Run Backend from Terminal
-
-From the repository root:
-
-```bash
-cd backend
-```
-
-### Windows CMD / PowerShell
-
-```bash
-mvnw.cmd spring-boot:run
-```
-
-### Git Bash / macOS / Linux
-
-```bash
-./mvnw spring-boot:run
-```
-
-The backend should start on:
-
-```text
-http://localhost:8080
-```
-
----
-
-## 6. Run Frontend
-
-Open another terminal from the repository root:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Vite normally starts the frontend on:
-
-```text
-http://localhost:5173
-```
-
-The frontend sends requests to paths beginning with:
-
-```text
-/api
-```
-
-Vite proxies those requests to:
-
-```text
-http://localhost:8080
-```
-
-So the normal development setup is:
-
-```text
-Browser
-http://localhost:5173
-       |
-       | /api/*
-       v
-Vite dev proxy
-       |
-       v
-Spring Boot
-http://localhost:8080
-       |
-       v
-PostgreSQL
-```
-
-The backend development CORS configuration currently allows local frontend origins including ports `5173` and `3000`.
-
----
-
-# Main API Endpoints
-
-All endpoints except `/api/auth/**` require:
-
-```http
-Authorization: Bearer <accessToken>
-```
-
----
-
-## Authentication
-
-### Register
-
-```http
-POST /api/auth/register
-```
-
-Example:
+Example request:
 
 ```json
 {
-  "name": "Test User",
-  "email": "test@example.com",
-  "password": "Test123!"
+  "inviteCode": "A7F3C9"
 }
 ```
 
-### Login
+Invite codes are normalized before lookup, so leading/trailing spaces and letter casing do not affect joining.
 
-```http
-POST /api/auth/login
-```
-
-Example:
-
-```json
-{
-  "email": "test@example.com",
-  "password": "Test123!"
-}
-```
-
-The response contains an `accessToken`.
-
-### Current user
-
-```http
-GET /api/users/me
-```
-
----
-
-## Households / Groups
-
-### Create household
-
-```http
-POST /api/groups
-```
-
-```json
-{
-  "name": "Green Street Home",
-  "description": "Shared apartment"
-}
-```
-
-The creator automatically becomes `OWNER`.
-
-### List current user's households
-
-```http
-GET /api/groups
-```
-
-This includes households where the current user is a member, not only households they own.
-
-### Get household
-
-```http
-GET /api/groups/{groupId}
-```
-
-Any member of the household can access it.
-
-### Update household
-
-```http
-PATCH /api/groups/{groupId}
-```
-
-Currently restricted to the owner.
-
-Example:
-
-```json
-{
-  "name": "Updated Household",
-  "description": "Updated description"
-}
-```
-
-### Delete household
-
-```http
-DELETE /api/groups/{groupId}
-```
-
-Owner-only.
-
-The current delete flow removes:
-
-```text
-chores
-→ memberships
-→ household
-```
-
-This allows a populated household to be deleted without leaving child rows behind.
-
----
-
-## Membership
-
-### List members
-
-```http
-GET /api/groups/{groupId}/members
-```
-
-### Add member by email
-
-```http
-POST /api/groups/{groupId}/members
-```
-
-```json
-{
-  "email": "member@example.com"
-}
-```
-
-Requires `OWNER` or `ADMIN`.
-
-### Self-join
-
-```http
-POST /api/groups/{groupId}/members/join
-```
-
-No body is required.
-
-The authenticated user joins as `MEMBER`.
-
-### Remove member
-
-```http
-DELETE /api/groups/{groupId}/members/{userId}
-```
-
-The current permission rules are:
-
-```text
-OWNER can remove ADMIN or MEMBER
-ADMIN can remove MEMBER
-ADMIN cannot remove another ADMIN
-OWNER cannot be removed
-requester cannot remove themselves
-```
-
-Assigned chores belonging to a removed user are unassigned.
+The previous numeric group-ID self-join flow has been removed.
 
 ---
 
@@ -748,43 +251,11 @@ Assigned chores belonging to a removed user are unassigned.
 POST /api/groups/{groupId}/chores
 ```
 
-Requires `OWNER` or `ADMIN`.
-
-Example:
-
-```json
-{
-  "title": "Clean the kitchen",
-  "description": "Wash the dishes and wipe the counter",
-  "assignedUserId": 3,
-  "points": 10,
-  "dueDate": "2026-08-26T20:00:00Z"
-}
-```
-
-Important fields:
-
-```text
-createdByUserId
-```
-
-is the user who created the chore.
-
-```text
-assignedUserId
-```
-
-is the user responsible for completing the chore.
-
-These values are intentionally different concepts.
-
 ### List household chores
 
 ```http
 GET /api/groups/{groupId}/chores
 ```
-
-Accessible to household members.
 
 ### Get chore
 
@@ -798,32 +269,10 @@ GET /api/groups/{groupId}/chores/{choreId}
 PATCH /api/groups/{groupId}/chores/{choreId}
 ```
 
-Requires `OWNER` or `ADMIN`.
-
-Example partial update:
-
-```json
-{
-  "title": "Clean kitchen and table",
-  "description": "Kitchen first, then dining table",
-  "points": 15
-}
-```
-
-The update DTO also supports changing the assigned user and due date.
-
 ### Delete chore
 
 ```http
 DELETE /api/groups/{groupId}/chores/{choreId}
-```
-
-Requires `OWNER` or `ADMIN`.
-
-Returns:
-
-```text
-204 No Content
 ```
 
 ### Complete chore
@@ -832,529 +281,289 @@ Returns:
 PATCH /api/groups/{groupId}/chores/{choreId}/complete
 ```
 
-A chore can currently be completed by:
+Normal chores use a single completion state.
 
-```text
-the assigned user
-or
-OWNER / ADMIN
-```
+Recurring chores track completed calendar occurrences separately using `completedDates`.
 
-Completion changes:
+A recurring occurrence can only be completed when:
 
-```text
-status = COMPLETED
-completedAt = current timestamp
-```
+- the selected date belongs to `recurrenceDays`
+- the selected date is not before `recurrenceStartDate`
 
-Calling the endpoint again for an already completed chore is handled idempotently and does not create another completion transition.
-
-There is currently **no reopen/uncomplete endpoint**.
+Changing a recurring chore to a non-recurring chore clears recurrence-specific completion data.
 
 ---
 
-# Frontend Flow
+## Gamification
 
-The current frontend provides:
+Gamification is implemented on the backend and consumed by the React frontend.
+
+### Leaderboard
+
+```http
+GET /api/groups/{groupId}/gamification/leaderboard
+```
+
+Each entry contains:
+
+```text
+userId
+name
+totalPoints
+completedChores
+rank
+```
+
+Recurring chore points are counted once for each completed occurrence.
+
+Members with the same number of points share the same rank.
+
+---
+
+### Achievements
+
+```http
+GET /api/groups/{groupId}/gamification/members/{memberUserId}/achievements
+```
+
+Current achievements:
+
+| Code | Requirement |
+|---|---|
+| `FIRST_CHORE` | Complete 1 chore |
+| `FIFTY_POINTS` | Earn 50 points |
+| `TWO_HUNDRED_POINTS` | Earn 200 points |
+
+Achievement responses include current progress and whether the achievement has been earned.
+
+---
+
+### Weekly Progress
+
+```http
+GET /api/groups/{groupId}/gamification/members/{memberUserId}/progress
+```
+
+The endpoint returns Monday-Sunday completion counts.
+
+For recurring chores, the occurrence date is used.
+
+For normal chores, the chore's calendar/due date is used so the graph represents the chore schedule rather than the exact wall-clock moment when the completion button was clicked.
+
+---
+
+## Frontend Flow
 
 ```text
 Login / Register
       ↓
 Household list
       ↓
-Create household / Join household
+Create household / Join with invite code
       ↓
-Member list
+Members
       ↓
 Member dashboard
       ↓
-Assigned chores
+Chores + Leaderboard + Achievements + Weekly Progress
 ```
 
-Important frontend behavior:
-
-- The household list is loaded from the backend.
-- Member permissions are resolved from membership roles.
-- A normal member can open their own dashboard.
-- `OWNER` and `ADMIN` can manage member chores.
-- Member dashboards filter chores by `assignedUserId`.
-- Completing a chore calls the backend `/complete` endpoint.
-- Completion therefore survives page refresh.
-- Chore create/edit/delete operations call the backend.
-- Household deletion calls the backend.
-- Member point totals are currently calculated from completed chores.
-- Member chore counts are calculated from assigned chores.
+The frontend uses backend authorization rules and also hides management controls from users who do not have permission to use them.
 
 ---
 
-# Gamification Handoff
+# Running Locally
 
-This is the most important next development area.
+## Prerequisites
 
-## What already exists
+Install:
 
-Each chore already has:
-
-```text
-points
-status
-assignedUser
-completedAt
-```
-
-This means a completed chore already contains the information needed to award a score.
-
-The frontend currently derives a member's visible point total approximately as:
-
-```text
-sum(points of COMPLETED chores assigned to that member)
-```
-
-The frontend also currently contains placeholder/hardcoded trophy definitions and a progress view.
-
-These are **not yet a persistent backend gamification system**.
+- Git
+- Java 21
+- PostgreSQL
+- Node.js + npm
 
 ---
 
-## Recommended gamification direction
-
-Create a separate backend module, for example:
-
-```text
-gamification
-├── controller
-├── dto
-├── entity
-├── repository
-└── service
-```
-
-Do not put leaderboard/badge logic into `AuthService`.
-
-Possible responsibilities:
-
-### Member statistics
-
-Provide household-specific member statistics such as:
-
-```text
-totalPoints
-completedChores
-assignedChores
-completionRate
-```
-
-Possible endpoint:
-
-```http
-GET /api/groups/{groupId}/members/{userId}/stats
-```
-
-### Leaderboard
-
-Possible endpoint:
-
-```http
-GET /api/groups/{groupId}/leaderboard
-```
-
-Possible response:
-
-```json
-[
-  {
-    "userId": 3,
-    "name": "Alice",
-    "points": 120,
-    "completedChores": 9
-  }
-]
-```
-
-### Badges / achievements
-
-Examples:
-
-```text
-First Chore
-50 Points
-100 Points
-5 Chores Completed
-10 Chores Completed
-Perfect Week
-```
-
-Possible implementation choices:
-
-1. derive badges dynamically from chore history, or
-2. persist earned badges in a dedicated table.
-
-If badges need an earned timestamp or should never disappear, persisting them is usually more useful.
-
-### Completion integration
-
-Current chore completion transition:
-
-```text
-PENDING
-  ↓
-COMPLETED
-```
-
-A future integration could be:
-
-```text
-ChoreService.completeChore(...)
-        ↓
-GamificationService.onChoreCompleted(...)
-        ↓
-update score / achievements
-```
-
-### Important: prevent duplicate scoring
-
-The complete endpoint can be called more than once.
-
-Therefore a persistent points system must not award points twice.
-
-Gamification should only award points on the real state transition:
-
-```text
-PENDING -> COMPLETED
-```
-
-and not when a chore was already completed.
-
-An alternative architecture is to avoid storing a mutable score initially and derive the score from completed chores. That approach naturally avoids score desynchronization, but leaderboard performance and badge history should be considered.
-
----
-
-# MVP Roadmap
-
-## MVP 1 — Core task flow
-
-Status: **Completed**
-
-- [x] Register
-- [x] Login
-- [x] JWT authentication
-- [x] Create chore
-- [x] List chores
-- [x] Complete chore
-- [x] Persist completion
-
----
-
-## MVP 2 — Household and assignment
-
-Status: **Mostly completed**
-
-- [x] Create household
-- [x] List user's households
-- [x] Household membership
-- [x] Assign chores to members
-- [x] Chore edit
-- [x] Chore delete
-- [x] Member kick
-- [x] Household delete
-- [x] Chore point value
-- [x] Client-side point summary
-- [ ] Persistent/centralized gamification statistics
-- [ ] Secure invitation flow
-
----
-
-## MVP 3 — Gamification
-
-Status: **Next major target**
-
-- [ ] Backend member statistics
-- [ ] Leaderboard
-- [ ] Persistent or derived total score strategy
-- [ ] Badge/achievement rules
-- [ ] Badge API
-- [ ] Replace hardcoded frontend trophies with backend data
-- [ ] Real progress/history data
-- [ ] Better gamification visual feedback
-
----
-
-## MVP 4 — Recurring chores and notifications
-
-Status: **Not started**
-
-- [ ] Recurring chore model
-- [ ] Daily/weekly recurrence rules
-- [ ] Generate next chore occurrence
-- [ ] Due-date reminders
-- [ ] Notifications
-- [ ] Optional email/push integration
-- [ ] Overdue chore handling
-
----
-
-# Known Limitations / Improvement Backlog
-
-These items are not blockers for the current MVP but should be addressed as the project matures.
-
-## High priority
-
-### Secure household invitations
-
-Current self-join uses the numeric group ID.
-
-Replace it with:
-
-```text
-invite code / invite token / approval request
-```
-
-### Real gamification backend
-
-Current visible score is derived by the frontend.
-
-The backend should become the source of truth for gamification-related data.
-
-### Dynamic calendar
-
-The current member dashboard calendar contains a hardcoded August week.
-
-Replace it with a dynamically generated current week/month based on real dates.
-
-### Role management
-
-Roles exist in the backend, but there is currently no complete promote/demote management flow.
-
-Useful future actions:
-
-```text
-OWNER promotes MEMBER -> ADMIN
-OWNER demotes ADMIN -> MEMBER
-```
-
----
-
-## Medium priority
-
-### Reopen a completed chore
-
-Completion is currently one-way.
-
-Possible endpoint:
-
-```http
-PATCH /api/groups/{groupId}/chores/{choreId}/reopen
-```
-
-Business rules need to define whether points/badges are reversed.
-
-### Standardize validation responses
-
-Custom domain exceptions are centralized, but validation errors and some generic bad-input cases can be standardized further.
-
-A consistent API error structure makes frontend handling easier.
-
-### Frontend UI cleanup
-
-Some administrative controls still use simple browser confirmation/alert behavior.
-
-Replace remaining native dialogs with reusable application modal components.
-
-Also consider extracting repeated modal/button styles into reusable React components.
-
-### Group settings UI
-
-Backend household update exists, but a richer frontend household settings page would improve name/description and role administration.
-
----
-
-## Engineering / Production improvements
-
-- [ ] Automated backend unit tests
-- [ ] Integration tests for authorization
-- [ ] Frontend component/API tests
-- [ ] End-to-end tests
-- [ ] OpenAPI / Swagger documentation
-- [ ] Flyway or Liquibase database migrations
-- [ ] Dockerfile for backend
-- [ ] Dockerfile for frontend
-- [ ] Docker Compose for PostgreSQL + backend + frontend
-- [ ] CI pipeline
-- [ ] Production CORS configuration
-- [ ] Production environment profiles
-- [ ] Logging improvements
-- [ ] Pagination for large chore/member lists
-- [ ] Better frontend loading/error states
-- [ ] Accessibility review
-- [ ] Responsive/mobile polish
-
----
-
-# Suggested End-to-End Smoke Test
-
-Before merging a large feature, the following scenario gives good coverage.
-
-## Account A — owner
-
-1. Register Account A.
-2. Login.
-3. Create a household.
-4. Confirm Account A is `OWNER`.
-
-## Account B — member
-
-5. Register Account B.
-6. Add B from A by email, or use the current join flow.
-7. Login as B.
-8. Confirm the household appears in B's household list.
-9. Confirm B can open the household and see members.
-
-## Chore assignment
-
-10. Login as A.
-11. Open B's member dashboard.
-12. Create a chore assigned to B.
-13. Edit the chore.
-14. Confirm B only sees chores assigned to B.
-
-## Completion
-
-15. Login as B.
-16. Complete B's chore.
-17. Refresh the page.
-18. Confirm the chore remains `COMPLETED`.
-19. Confirm `completedAt` exists in the database.
-20. Confirm B's point total reflects the completed chore.
-
-## Permissions
-
-21. Confirm B cannot create/edit/delete chores.
-22. Confirm an unrelated household member cannot complete B's chore.
-23. Confirm A can manage chores.
-
-## Member removal
-
-24. Login as A.
-25. Remove B.
-26. Confirm B no longer sees the household.
-27. Confirm chores previously assigned to B are now unassigned rather than deleted.
-
-## Household deletion
-
-28. Create a disposable household with members and chores.
-29. Delete it as its owner.
-30. Confirm its chores and memberships are removed.
-
----
-
-# Development Notes for Collaborators
-
-Before starting work:
+## 1. Clone
 
 ```bash
-git checkout main
-git pull origin main
+git clone https://github.com/bugraberatkok/SmartChoresTracker.git
+cd SmartChoresTracker
 ```
 
-For a feature:
+---
 
-```bash
-git checkout -b feature/gamification
+## 2. PostgreSQL
+
+Create a local database:
+
+```sql
+CREATE DATABASE choreapp;
 ```
 
-Keep secrets local.
+The development configuration uses Hibernate schema updates, so application tables are created/updated from the entities.
 
-Never commit:
+---
+
+## 3. Backend Environment Variables
+
+Configure:
 
 ```text
-database passwords
-JWT secrets
-.env files
-IDE-specific secret configuration
+DB_URL
+DB_USERNAME
+DB_PASSWORD
+JWT_SECRET
 ```
 
-Useful ignored build/dependency directories include:
+Example:
 
 ```text
-backend/target/
-frontend/node_modules/
-frontend/dist/
+DB_URL=jdbc:postgresql://localhost:5432/choreapp
+DB_USERNAME=postgres
+DB_PASSWORD=YOUR_POSTGRES_PASSWORD
+JWT_SECRET=YOUR_BASE64_ENCODED_SECRET
 ```
 
-Before committing frontend work:
+Generate a suitable JWT secret with Python:
 
 ```bash
-cd frontend
-npm run build
+python -c "import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
 ```
 
-Before committing backend work:
+Do not commit database passwords or JWT secrets.
+
+---
+
+## 4. Run Backend
 
 ```bash
 cd backend
-./mvnw test
 ```
 
-On Windows:
+Windows:
 
 ```bash
-mvnw.cmd test
+mvnw.cmd spring-boot:run
+```
+
+Git Bash / macOS / Linux:
+
+```bash
+./mvnw spring-boot:run
+```
+
+Backend:
+
+```text
+http://localhost:8080
 ```
 
 ---
 
-# Suggested Next Work Session
+## 5. Run Frontend
 
-A practical next sequence is:
+In another terminal:
 
-```text
-1. Design gamification data strategy
-2. Add backend member stats / leaderboard
-3. Integrate scoring with chore completion safely
-4. Replace frontend hardcoded trophy data
-5. Make calendar dynamic
-6. Replace numeric group-ID join with invite code
-7. Add tests
-8. Add recurring chores
-9. Add notifications
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-For gamification, decide one question first:
+Vite normally starts at:
 
-> Should total points be persisted in a dedicated model, or derived from completed chores?
+```text
+http://localhost:5173
+```
 
-That choice affects score updates, undo/reopen behavior, leaderboard queries, badge history, and duplicate-award protection.
+Frontend `/api/*` requests are proxied to the Spring Boot backend.
 
 ---
 
-# Current Development Philosophy
+# Validation and Tests
 
-The project is intentionally being developed as a **modular monolith**.
+## Backend
 
-The goal is not to split the application into unnecessary microservices.
+Critical business logic currently has Mockito/JUnit tests for:
 
-Instead:
+- leaderboard point and rank calculation
+- recurring chore completion validation
+- secure invite-code joining
 
-```text
-one deployable backend
-+
-clear feature boundaries
-+
-independent modules
+Run all backend tests:
+
+```bash
+cd backend
+mvn clean test
 ```
 
-This keeps the Capstone implementation understandable while allowing future modules such as:
+Expected result:
 
 ```text
-gamification
-recurring
-notification
+BUILD SUCCESS
 ```
-
-to be added without rewriting authentication, group, or chore logic.
 
 ---
 
-## License
+## Frontend
 
-This repository is currently an academic Capstone project. Add a formal license if the project is later distributed publicly under a specific license.
+Run ESLint:
+
+```bash
+cd frontend
+npm run lint
+```
+
+Create a production build:
+
+```bash
+npm run build
+```
+
+Both checks should complete without errors before merging changes.
+
+---
+
+# Development Roadmap
+
+The current MVP is functional. Possible next improvements include:
+
+- Promote/demote household members between `ADMIN` and `MEMBER`
+- Notifications and reminders
+- Custom household rewards / parent-defined goals
+- More achievements
+- Streak-based gamification
+- Invite-code regeneration/revocation
+- Invite expiration
+- Better audit/history views
+- Expanded automated test coverage
+- Integration tests / Testcontainers
+- CI pipeline for backend tests, frontend lint, and frontend build
+- Deployment configuration
+
+---
+
+## Current MVP Summary
+
+```text
+Authentication          ✅
+JWT authorization       ✅
+Households              ✅
+Memberships             ✅
+Secure invite codes     ✅
+Role-based permissions  ✅
+Chore CRUD              ✅
+Recurring chores        ✅
+Completion tracking     ✅
+Points                  ✅
+Leaderboard             ✅
+Achievements            ✅
+Weekly progress         ✅
+Backend unit tests      ✅
+Frontend lint           ✅
+Frontend build          ✅
+```
+
+Smart Chores Tracker is now at a solid MVP stage and is ready for further feature development and deployment-oriented improvements.

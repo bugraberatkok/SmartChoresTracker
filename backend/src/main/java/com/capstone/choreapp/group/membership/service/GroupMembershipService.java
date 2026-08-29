@@ -117,20 +117,29 @@ public class GroupMembershipService {
     }
 
     @Transactional
-    public GroupMemberResponse joinGroup(
-            Long groupId,
+    public GroupMemberResponse joinByInviteCode(
+            String inviteCode,
             Long userId
     ) {
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new GroupNotFoundException(groupId));
+        String normalizedCode = inviteCode
+                .trim()
+                .toUpperCase(Locale.ROOT);
+
+        Group group = groupRepository
+                .findByInviteCode(normalizedCode)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Invalid invite code")
+                );
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new UserNotFoundException("Authenticated user was not found")
+                        new UserNotFoundException(
+                                "Authenticated user was not found"
+                        )
                 );
 
         if (groupMembershipRepository
-                .existsByUserIdAndGroupId(userId, groupId)) {
+                .existsByUserIdAndGroupId(userId, group.getId())) {
             throw new UserAlreadyGroupMemberException();
         }
 

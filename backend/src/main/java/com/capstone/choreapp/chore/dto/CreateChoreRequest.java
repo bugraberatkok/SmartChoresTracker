@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
+import java.time.DayOfWeek;
+import java.util.Set;
 
 public record CreateChoreRequest(
 
@@ -20,6 +22,13 @@ public record CreateChoreRequest(
         @Min(value = 0, message = "Points cannot be negative")
         Integer points,
 
-        Instant dueDate
+        Instant dueDate,
+
+        @Size(max = 16, message = "Icon is too long")
+        String icon,
+
+        Boolean recurring,
+
+        Set<DayOfWeek> recurrenceDays
 ) {
 }
