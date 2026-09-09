@@ -2,7 +2,9 @@
 // api.ts – thin wrapper around fetch for the Spring Boot backend
 // ---------------------------------------------------------------------------
 
-const API_BASE = '/api'
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL ?? '/api'
+).replace(/\/$/, '')
 
 // ---- token helpers --------------------------------------------------------
 
@@ -45,6 +47,11 @@ async function request<T>(
     ...options,
     headers,
   })
+
+  if (res.status === 401 && accessToken) {
+    clearToken()
+    window.dispatchEvent(new Event('auth:unauthorized'))
+  }
 
   // 204 No Content → no body to parse
   if (res.status === 204) return undefined as unknown as T

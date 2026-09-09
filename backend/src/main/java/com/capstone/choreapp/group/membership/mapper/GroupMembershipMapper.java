@@ -21,6 +21,13 @@ public class GroupMembershipMapper {
         membership.setUser(user);
         membership.setGroup(group);
         membership.setRole(role);
+        membership.setDisplayTitle(
+                switch (role) {
+                    case OWNER -> "Organizer";
+                    case ADMIN -> "Coordinator";
+                    case MEMBER -> "Member";
+                }
+        );
 
         return membership;
     }
@@ -32,6 +39,7 @@ public class GroupMembershipMapper {
                 membership.getUser().getName(),
                 membership.getUser().getEmail(),
                 membership.getRole(),
+                membership.getDisplayTitle(),
                 membership.getJoinedAt()
         );
     }

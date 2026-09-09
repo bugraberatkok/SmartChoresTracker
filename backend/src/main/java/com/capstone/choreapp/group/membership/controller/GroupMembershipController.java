@@ -2,6 +2,8 @@ package com.capstone.choreapp.group.membership.controller;
 
 import com.capstone.choreapp.group.membership.dto.AddGroupMemberRequest;
 import com.capstone.choreapp.group.membership.dto.GroupMemberResponse;
+import com.capstone.choreapp.group.membership.dto.UpdateDisplayTitleRequest;
+import com.capstone.choreapp.group.membership.dto.UpdateGroupRoleRequest;
 import com.capstone.choreapp.group.membership.service.GroupMembershipService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +63,39 @@ public class GroupMembershipController {
                 groupId,
                 requesterId,
                 userId
+        );
+    }
+
+    @PatchMapping("/me/display-title")
+    public GroupMemberResponse updateOwnDisplayTitle(
+            @PathVariable Long groupId,
+            @Valid @RequestBody UpdateDisplayTitleRequest request,
+            Authentication authentication
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+
+        return groupMembershipService.updateOwnDisplayTitle(
+                groupId,
+                userId,
+                request.displayTitle()
+        );
+    }
+
+    @PatchMapping("/{userId}/role")
+    public GroupMemberResponse updateMemberRole(
+            @PathVariable Long groupId,
+            @PathVariable Long userId,
+            @Valid @RequestBody UpdateGroupRoleRequest request,
+            Authentication authentication
+    ) {
+        Long requesterId =
+                Long.valueOf(authentication.getName());
+
+        return groupMembershipService.updateMemberRole(
+                groupId,
+                requesterId,
+                userId,
+                request.role()
         );
     }
 }

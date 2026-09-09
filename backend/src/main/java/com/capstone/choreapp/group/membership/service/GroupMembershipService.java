@@ -196,4 +196,66 @@ public class GroupMembershipService {
 
         groupMembershipRepository.delete(target);
     }
+
+    @Transactional
+    public GroupMemberResponse updateOwnDisplayTitle(
+            Long groupId,
+            Long userId,
+            String displayTitle
+    ) {
+        GroupMembership membership = requireMember(groupId, userId);
+
+        String normalizedTitle = displayTitle.trim();
+
+        membership.setDisplayTitle(normalizedTitle);
+
+        return groupMembershipMapper.toResponse(membership);
+    }
+
+    @Transactional
+    public GroupMemberResponse updateMemberRole(
+            Long groupId,
+            Long requesterId,
+            Long targetUserId,
+            GroupRole newRole
+    ) {
+        requireOwner(groupId, requesterId);
+
+        GroupMembership target =
+                groupMembershipRepository
+                        .findByUserIdAndGroupId(targetUserId, groupId)
+                        .orElseThrow(
+                                GroupMembershipNotFoundException::new
+                        );
+
+        // OWNER rolü hiçbir şekilde bu endpoint üzerinden değiştirilemez.
+        if (target.getRole() == GroupRole.OWNER) {
+            throw new GroupAccessDeniedException();
+        }
+
+        // Yeni OWNER oluşturmak da yasak.
+        // OWNER transferi ileride ayrı bir feature olmalı.
+        if (newRole == GroupRole.OWNER) {
+            throw new IllegalArgumentException(
+                    "Owner role cannot be assigned through this operation"
+            );
+        }
+
+        // Sadece ADMIN <-> MEMBER değişimine izin veriyoruz.
+        if (newRole != GroupRole.ADMIN
+                && newRole != GroupRole.MEMBER) {
+            throw new IllegalArgumentException(
+                    "Role must be ADMIN or MEMBER"
+            );
+        }
+
+        // Aynı role tekrar request gelirse idempotent davran.
+        if (target.getRole() == newRole) {
+            return groupMembershipMapper.toResponse(target);
+        }
+
+        target.setRole(newRole);
+
+        return groupMembershipMapper.toResponse(target);
+    }
 }

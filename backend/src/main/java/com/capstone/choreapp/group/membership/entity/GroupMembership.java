@@ -54,6 +54,9 @@ public class GroupMembership {
     @Column(nullable = false, length = 20)
     private GroupRole role;
 
+    @Column(name = "display_title", length = 40)
+    private String displayTitle;
+
     @CreationTimestamp
     @Column(name = "joined_at", nullable = false, updatable = false)
     private Instant joinedAt;

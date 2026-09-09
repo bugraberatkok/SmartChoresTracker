@@ -118,6 +118,23 @@ function App() {
     setPage('login')
   }
 
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setCurrentUser(null)
+      setHouseholds([])
+      setSelectedHousehold(null)
+      setSelectedMember(null)
+      setLoading(false)
+      setPage('login')
+    }
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized)
+
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized)
+    }
+  }, [])
+
   // ---- household selected → fetch members --------------------------------
 
   const selectHousehold = async (household: Household) => {

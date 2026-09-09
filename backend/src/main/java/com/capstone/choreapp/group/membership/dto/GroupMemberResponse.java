@@ -10,6 +10,7 @@ public record GroupMemberResponse(
         String name,
         String email,
         GroupRole role,
+        String displayTitle,
         Instant joinedAt
 ) {
 }

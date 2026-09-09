@@ -25,6 +25,7 @@ public class GamificationService {
     private final GroupMembershipRepository groupMembershipRepository;
     private final ChoreRepository choreRepository;
     private final GroupMembershipService groupMembershipService;
+    private final ZoneId applicationZoneId;
 
     @Transactional(readOnly = true)
     public List<LeaderboardEntryResponse> getLeaderboard(
@@ -182,7 +183,7 @@ public class GamificationService {
         groupMembershipService.requireMember(groupId, requesterId);
         groupMembershipService.requireMember(groupId, memberUserId);
 
-        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        LocalDate today = LocalDate.now(applicationZoneId);
 
         LocalDate weekStart = today.minusDays(
                 today.getDayOfWeek().getValue()
@@ -220,7 +221,7 @@ public class GamificationService {
 
                                 LocalDate choreDate =
                                         chore.getDueDate()
-                                                .atZone(ZoneId.systemDefault())
+                                                .atZone(applicationZoneId)
                                                 .toLocalDate();
 
                                 return choreDate.equals(date)

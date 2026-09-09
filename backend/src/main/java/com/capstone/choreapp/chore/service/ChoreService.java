@@ -34,6 +34,7 @@ public class ChoreService {
     private final UserRepository userRepository;
     private final GroupMembershipService groupMembershipService;
     private final ChoreMapper choreMapper;
+    private final ZoneId applicationZoneId;
 
 
     @Transactional
@@ -101,9 +102,9 @@ public class ChoreService {
         if (chore.isRecurring()) {
             LocalDate startDate = request.dueDate() != null
                     ? request.dueDate()
-                    .atZone(ZoneId.systemDefault())
+                    .atZone(applicationZoneId)
                     .toLocalDate()
-                    : LocalDate.now(ZoneId.systemDefault());
+                    : LocalDate.now(applicationZoneId);
 
             chore.setRecurrenceStartDate(startDate);
         } else {
@@ -207,9 +208,9 @@ public class ChoreService {
             } else if (chore.getRecurrenceStartDate() == null) {
                 LocalDate startDate = chore.getDueDate() != null
                         ? chore.getDueDate()
-                                .atZone(ZoneId.systemDefault())
+                                .atZone(applicationZoneId)
                                 .toLocalDate()
-                        : LocalDate.now(ZoneId.systemDefault());
+                        : LocalDate.now(applicationZoneId);
 
                 chore.setRecurrenceStartDate(startDate);
             }
@@ -292,7 +293,7 @@ public class ChoreService {
         if (chore.isRecurring()) {
             LocalDate date = occurrenceDate != null
                     ? occurrenceDate
-                    : LocalDate.now(ZoneId.systemDefault());
+                    : LocalDate.now(applicationZoneId);
 
             if (!chore.getRecurrenceDays().contains(date.getDayOfWeek())) {
                 throw new IllegalArgumentException(
