@@ -15,7 +15,6 @@ export type Member = {
   isAdmin?: boolean   // role === 'OWNER' or 'ADMIN'
   role?: 'OWNER' | 'ADMIN' | 'MEMBER'
   displayTitle?: string
-  avatarKey?: string | null
   todayChores?: number
   todayCompleted?: number
 }
@@ -58,24 +57,3 @@ const HOUSEHOLD_EMOJIS = ['🏡', '🏠', '🎓', '💼', '🌿', '🌈']
 export function deriveEmoji(groupId: number): string {
   return HOUSEHOLD_EMOJIS[groupId % HOUSEHOLD_EMOJIS.length]
 }
-
-export const AVATAR_EMOJIS: Record<string, string> = {
-  default: '🙂',
-  mint: '🌿',
-  sun: '☀️',
-  moon: '🌙',
-  star: '⭐',
-  leaf: '🍃',
-  cat: '🐱',
-  dog: '🐶',
-  fox: '🦊',
-  bear: '🐻',
-  robot: '🤖',
-  rocket: '🚀',
-}
-
-export function avatarEmoji(avatarKey?: string | null): string | null {
-  if (!avatarKey) return null
-  return AVATAR_EMOJIS[avatarKey] ?? null
-}
-

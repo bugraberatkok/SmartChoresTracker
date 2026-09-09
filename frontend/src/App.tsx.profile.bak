@@ -85,7 +85,6 @@ function toMember(m: GroupMemberResponse, chores: ChoreResponse[]): Member {
     isAdmin: m.role === 'OWNER' || m.role === 'ADMIN',
     role: m.role,
     displayTitle: m.displayTitle ?? 'Member',
-    avatarKey: m.avatarKey,
     todayChores: todaysChores.length,
     todayCompleted,
   }
@@ -272,36 +271,6 @@ function App() {
                 ? { ...h, members: h.members.filter((m) => m.id !== userId) }
                 : h,
             ),
-          )
-        }}
-        onCurrentUserUpdated={(user) => {
-          setCurrentUser(user)
-
-          const updateMember = (member: Member): Member =>
-            member.id === user.id
-              ? {
-                  ...member,
-                  name: user.name,
-                  initials: deriveInitials(user.name),
-                  avatarKey: user.avatarKey,
-                }
-              : member
-
-          setHouseholds((prev) =>
-            prev.map((household) => ({
-              ...household,
-              members: household.members.map(updateMember),
-            })),
-          )
-
-          setSelectedHousehold((prev) =>
-            prev
-              ? { ...prev, members: prev.members.map(updateMember) }
-              : prev,
-          )
-
-          setSelectedMember((prev) =>
-            prev ? updateMember(prev) : prev,
           )
         }}
         onMemberUpdated={(updatedMember) => {

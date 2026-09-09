@@ -94,8 +94,6 @@ export default function MembersPage({
   const [memberRoleUpdatingId, setMemberRoleUpdatingId] =
     useState<number | null>(null)
 
-  const [managementMember, setManagementMember] = useState<Member | null>(null)
-
   const currentMember =
     household.members.find((member) => member.id === currentUserId) ?? null
 
@@ -262,6 +260,12 @@ export default function MembersPage({
     if (member.role === 'OWNER') return
 
     const nextRole = member.role === 'ADMIN' ? 'MEMBER' : 'ADMIN'
+    const prompt =
+      nextRole === 'ADMIN'
+        ? `Give ${member.name} management permissions?`
+        : `Remove management permissions from ${member.name}?`
+
+    if (!window.confirm(prompt)) return
 
     setMemberRoleUpdatingId(member.id)
 
@@ -275,8 +279,6 @@ export default function MembersPage({
       onMemberUpdated(
         backendMemberToUpdatedMember(member, response),
       )
-
-      setManagementMember(null)
     } catch (err) {
       window.alert(
         err instanceof ApiError
@@ -443,7 +445,7 @@ export default function MembersPage({
                       className="member-secondary-action"
                       type="button"
                       disabled={isUpdatingRole}
-                      onClick={() => setManagementMember(member)}
+                      onClick={() => handleToggleManagement(member)}
                     >
                       {isUpdatingRole ? 'Updating...' : 'Management'}
                     </button>
@@ -538,90 +540,6 @@ export default function MembersPage({
                 onClick={handleSaveProfile}
               >
                 {profileSaving ? 'Saving...' : 'Save profile'}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {managementMember && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={() =>
-            memberRoleUpdatingId === null && setManagementMember(null)
-          }
-        >
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="management-modal-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <button
-              className="modal-close"
-              type="button"
-              disabled={memberRoleUpdatingId !== null}
-              onClick={() => setManagementMember(null)}
-              aria-label="Close"
-            >
-              ×
-            </button>
-
-            <span className="modal-icon">
-              {managementMember.role === 'ADMIN' ? '🔐' : '🛠️'}
-            </span>
-
-            <h2 id="management-modal-title">
-              {managementMember.role === 'ADMIN'
-                ? 'Remove management permissions?'
-                : 'Grant management permissions?'}
-            </h2>
-
-            <p>
-              {managementMember.role === 'ADMIN'
-                ? `${managementMember.name} will return to regular member access.`
-                : `${managementMember.name} will be able to help manage this household.`}
-            </p>
-
-            {managementMember.role !== 'ADMIN' && (
-              <div
-                style={{
-                  textAlign: 'left',
-                  marginTop: '1rem',
-                  lineHeight: 1.7,
-                }}
-              >
-                <strong>They will be able to:</strong>
-                <ul style={{ marginTop: '0.5rem' }}>
-                  <li>Create and edit chores</li>
-                  <li>Manage regular members</li>
-                  <li>View member dashboards</li>
-                </ul>
-              </div>
-            )}
-
-            <div className="title-modal-actions">
-              <button
-                className="member-secondary-action"
-                type="button"
-                disabled={memberRoleUpdatingId !== null}
-                onClick={() => setManagementMember(null)}
-              >
-                Cancel
-              </button>
-
-              <button
-                className="submit-button"
-                type="button"
-                disabled={memberRoleUpdatingId !== null}
-                onClick={() => handleToggleManagement(managementMember)}
-              >
-                {memberRoleUpdatingId === managementMember.id
-                  ? 'Updating...'
-                  : managementMember.role === 'ADMIN'
-                    ? 'Remove management'
-                    : 'Grant management'}
               </button>
             </div>
           </section>

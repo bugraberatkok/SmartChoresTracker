@@ -30,48 +30,12 @@ function toHousehold(group: GroupResponse, currentUserId: number): Household {
   }
 }
 
-function localDateKey(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function isChoreScheduledToday(chore: ChoreResponse, today: Date): boolean {
-  const todayKey = localDateKey(today)
-
-  if (chore.recurring) {
-    const dayName = today
-      .toLocaleDateString('en-US', { weekday: 'long' })
-      .toUpperCase()
-
-    return (
-      chore.recurrenceDays.includes(dayName) &&
-      (!chore.recurrenceStartDate || chore.recurrenceStartDate <= todayKey)
-    )
-  }
-
-  if (!chore.dueDate) return false
-  return localDateKey(new Date(chore.dueDate)) === todayKey
-}
-
 function toMember(m: GroupMemberResponse, chores: ChoreResponse[]): Member {
   const assignedChores = chores.filter((chore) => chore.assignedUserId === m.userId)
   const points = assignedChores
     .reduce((sum, chore) => sum + (chore.points ?? 0) * (
       chore.recurring ? chore.completedDates.length : chore.status === 'COMPLETED' ? 1 : 0
     ), 0)
-
-  const today = new Date()
-  const todayKey = localDateKey(today)
-  const todaysChores = assignedChores.filter((chore) =>
-    isChoreScheduledToday(chore, today),
-  )
-  const todayCompleted = todaysChores.filter((chore) =>
-    chore.recurring
-      ? chore.completedDates.includes(todayKey)
-      : chore.status === 'COMPLETED',
-  ).length
 
   return {
     id: m.userId,
@@ -85,9 +49,6 @@ function toMember(m: GroupMemberResponse, chores: ChoreResponse[]): Member {
     isAdmin: m.role === 'OWNER' || m.role === 'ADMIN',
     role: m.role,
     displayTitle: m.displayTitle ?? 'Member',
-    avatarKey: m.avatarKey,
-    todayChores: todaysChores.length,
-    todayCompleted,
   }
 }
 
@@ -260,7 +221,6 @@ function App() {
       <MembersPage
         household={selectedHousehold}
         currentUserId={currentUser?.id ?? null}
-        onHome={() => setPage('households')}
         onBack={() => setPage('households')}
         onMemberRemoved={(userId) => {
           setSelectedHousehold((prev) =>
@@ -272,36 +232,6 @@ function App() {
                 ? { ...h, members: h.members.filter((m) => m.id !== userId) }
                 : h,
             ),
-          )
-        }}
-        onCurrentUserUpdated={(user) => {
-          setCurrentUser(user)
-
-          const updateMember = (member: Member): Member =>
-            member.id === user.id
-              ? {
-                  ...member,
-                  name: user.name,
-                  initials: deriveInitials(user.name),
-                  avatarKey: user.avatarKey,
-                }
-              : member
-
-          setHouseholds((prev) =>
-            prev.map((household) => ({
-              ...household,
-              members: household.members.map(updateMember),
-            })),
-          )
-
-          setSelectedHousehold((prev) =>
-            prev
-              ? { ...prev, members: prev.members.map(updateMember) }
-              : prev,
-          )
-
-          setSelectedMember((prev) =>
-            prev ? updateMember(prev) : prev,
           )
         }}
         onMemberUpdated={(updatedMember) => {
@@ -346,7 +276,6 @@ function App() {
       <MemberDashboard
         household={selectedHousehold}
         member={selectedMember}
-        onHome={() => setPage('households')}
         onBack={() => selectHousehold(selectedHousehold)}
       />
     )

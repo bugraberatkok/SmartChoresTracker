@@ -1,0 +1,560 @@
+import { useState } from 'react'
+import { HomeMark } from './LoginPage'
+import type { Household, Member } from './types'
+import {
+  ApiError,
+  getOrCreateInviteCode,
+  removeGroupMember,
+  updateMemberRole,
+  updateOwnDisplayTitle,
+  type GroupMemberResponse,
+} from './api'
+
+type Props = {
+  household: Household
+  currentUserId: number | null
+  onBack: () => void
+  onMemberRemoved: (userId: number) => void
+  onMemberUpdated: (member: Member) => void
+  onSelectMember: (member: Member) => void
+}
+
+const TITLE_PRESETS = [
+  'Mom',
+  'Dad',
+  'Parent',
+  'Child',
+  'Sibling',
+  'Roommate',
+  'Housemate',
+  'Home Owner',
+  'Organizer',
+  'Coordinator',
+  'Team Lead',
+  'Helper',
+  'Member',
+  'Chaos Coordinator',
+] as const
+
+function backendMemberToUpdatedMember(
+  existing: Member,
+  response: GroupMemberResponse,
+): Member {
+  return {
+    ...existing,
+    name: response.name,
+    email: response.email,
+    membershipId: response.membershipId,
+    role: response.role,
+    isAdmin: response.role === 'OWNER' || response.role === 'ADMIN',
+    displayTitle: response.displayTitle ?? existing.displayTitle ?? 'Member',
+  }
+}
+
+export default function MembersPage({
+  household,
+  currentUserId,
+  onBack,
+  onMemberRemoved,
+  onMemberUpdated,
+  onSelectMember,
+}: Props) {
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [inviteCode, setInviteCode] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const currentMember =
+    household.members.find((member) => member.id === currentUserId) ?? null
+
+  const currentDisplayTitle = currentMember?.displayTitle ?? 'Member'
+
+  const currentTitleIsPreset = TITLE_PRESETS.some(
+    (title) => title === currentDisplayTitle,
+  )
+
+  const [titleSelection, setTitleSelection] = useState(
+    currentTitleIsPreset ? currentDisplayTitle : 'Custom...',
+  )
+
+  const [customTitle, setCustomTitle] = useState(
+    currentTitleIsPreset ? '' : currentDisplayTitle,
+  )
+
+  const [titleSaving, setTitleSaving] = useState(false)
+  const [memberRoleUpdatingId, setMemberRoleUpdatingId] =
+    useState<number | null>(null)
+
+  const handleShowInviteCode = async () => {
+    setInviteModalOpen(true)
+    setInviteError('')
+    setCopied(false)
+
+    if (inviteCode) return
+
+    setInviteLoading(true)
+
+    try {
+      const response = await getOrCreateInviteCode(household.id)
+      setInviteCode(response.inviteCode)
+    } catch (err) {
+      setInviteError(
+        err instanceof ApiError ? err.message : 'Failed to load invite code',
+      )
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  const handleCopyInviteCode = async () => {
+    if (!inviteCode) return
+
+    try {
+      await navigator.clipboard.writeText(inviteCode)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      setInviteError('Could not copy invite code')
+    }
+  }
+
+  const handleRemoveMember = async (member: Member) => {
+    if (!window.confirm(`Remove ${member.name} from this household?`)) return
+
+    try {
+      await removeGroupMember(household.id, member.id)
+      onMemberRemoved(member.id)
+    } catch (err) {
+      window.alert(
+        err instanceof ApiError ? err.message : 'Failed to remove member',
+      )
+    }
+  }
+
+  const handleSaveDisplayTitle = async () => {
+    if (!currentMember) return
+
+    const nextTitle =
+      titleSelection === 'Custom...' ? customTitle.trim() : titleSelection
+
+    if (!nextTitle) {
+      window.alert('Please enter a title.')
+      return
+    }
+
+    if (nextTitle.length > 40) {
+      window.alert('Title must be at most 40 characters.')
+      return
+    }
+
+    setTitleSaving(true)
+
+    try {
+      const response = await updateOwnDisplayTitle(
+        household.id,
+        nextTitle,
+      )
+
+      onMemberUpdated(
+        backendMemberToUpdatedMember(currentMember, response),
+      )
+    } catch (err) {
+      window.alert(
+        err instanceof ApiError ? err.message : 'Failed to update title',
+      )
+    } finally {
+      setTitleSaving(false)
+    }
+  }
+
+  const handleToggleManagement = async (member: Member) => {
+    if (member.role === 'OWNER') return
+
+    const nextRole =
+      member.role === 'ADMIN'
+        ? 'MEMBER'
+        : 'ADMIN'
+
+    const actionText =
+      nextRole === 'ADMIN'
+        ? `Give ${member.name} management permissions?`
+        : `Remove management permissions from ${member.name}?`
+
+    if (!window.confirm(actionText)) return
+
+    setMemberRoleUpdatingId(member.id)
+
+    try {
+      const response = await updateMemberRole(
+        household.id,
+        member.id,
+        nextRole,
+      )
+
+      onMemberUpdated(
+        backendMemberToUpdatedMember(member, response),
+      )
+    } catch (err) {
+      window.alert(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to update member permissions',
+      )
+    } finally {
+      setMemberRoleUpdatingId(null)
+    }
+  }
+
+  const currentUserIsOwner = household.ownerId === currentUserId
+
+  return (
+    <main className="app-shell">
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand-mark">
+            <HomeMark />
+          </span>
+          <span>Smart Chores</span>
+        </div>
+
+        <div className="household-chip">
+          <span>{household.emoji}</span>
+          {household.name}
+        </div>
+      </header>
+
+      <section className="page-content members-content">
+        <button
+          className="back-button"
+          type="button"
+          onClick={onBack}
+        >
+          ← All households
+        </button>
+
+        <div className="page-heading members-heading">
+          <div>
+            <span className="eyebrow">Household overview</span>
+            <h1>Members</h1>
+            <p>
+              See everyone in {household.name} and how they're doing.
+            </p>
+          </div>
+
+          <div className="members-heading-actions">
+            <button
+              className="invite-code-button"
+              type="button"
+              onClick={handleShowInviteCode}
+            >
+              🔑 Invite code
+            </button>
+
+            <div className="members-count">
+              <strong>{household.members.length}</strong>
+              <span>members</span>
+            </div>
+          </div>
+        </div>
+
+        {currentMember && (
+          <section
+            style={{
+              marginBottom: '1.4rem',
+              padding: '1rem 1.1rem',
+              border: '1px solid rgba(0, 0, 0, 0.09)',
+              borderRadius: '16px',
+              background: 'rgba(255, 255, 255, 0.7)',
+            }}
+          >
+            <div style={{ marginBottom: '0.8rem' }}>
+              <strong>Your household title</strong>
+              <p
+                style={{
+                  margin: '0.25rem 0 0',
+                  opacity: 0.7,
+                  fontSize: '0.9rem',
+                }}
+              >
+                Choose how other members see you in this household.
+              </p>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.65rem',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+              }}
+            >
+              <select
+                value={titleSelection}
+                onChange={(event) =>
+                  setTitleSelection(event.target.value)
+                }
+                style={{
+                  minHeight: '42px',
+                  padding: '0 0.75rem',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(0, 0, 0, 0.16)',
+                }}
+              >
+                {TITLE_PRESETS.map((title) => (
+                  <option key={title} value={title}>
+                    {title}
+                  </option>
+                ))}
+                <option value="Custom...">Custom...</option>
+              </select>
+
+              {titleSelection === 'Custom...' && (
+                <input
+                  value={customTitle}
+                  maxLength={40}
+                  placeholder="Enter custom title"
+                  onChange={(event) =>
+                    setCustomTitle(event.target.value)
+                  }
+                  style={{
+                    minHeight: '42px',
+                    minWidth: '200px',
+                    padding: '0 0.75rem',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.16)',
+                  }}
+                />
+              )}
+
+              <button
+                className="submit-button"
+                type="button"
+                disabled={titleSaving}
+                onClick={handleSaveDisplayTitle}
+                style={{
+                  width: 'auto',
+                  minHeight: '42px',
+                  padding: '0 1rem',
+                }}
+              >
+                {titleSaving ? 'Saving...' : 'Save title'}
+              </button>
+            </div>
+          </section>
+        )}
+
+        <div className="members-list">
+          {household.members.length === 0 && (
+            <div className="empty-state">
+              <span>👥</span>
+              <h3>No members yet</h3>
+              <p>
+                Members will appear here once they've been added to this
+                household.
+              </p>
+            </div>
+          )}
+
+          {household.members.map((member) => {
+            const isCurrentUser = member.id === currentUserId
+            const canOpen = household.isAdmin || isCurrentUser
+
+            const canKick =
+              household.isAdmin &&
+              member.role !== 'OWNER' &&
+              !isCurrentUser &&
+              (currentUserIsOwner || member.role === 'MEMBER')
+
+            const canChangeManagement =
+              currentUserIsOwner &&
+              member.role !== 'OWNER' &&
+              !isCurrentUser
+
+            const isUpdatingRole =
+              memberRoleUpdatingId === member.id
+
+            const displayTitle =
+              member.displayTitle?.trim() || 'Member'
+
+            return (
+              <div
+                key={member.id}
+                style={{
+                  display: 'flex',
+                  gap: '0.6rem',
+                  alignItems: 'stretch',
+                  width: '100%',
+                }}
+              >
+                <button
+                  className={`member-card ${
+                    !canOpen ? 'member-card-locked' : ''
+                  }`}
+                  style={{ flex: 1 }}
+                  type="button"
+                  onClick={() =>
+                    canOpen && onSelectMember(member)
+                  }
+                  disabled={!canOpen}
+                >
+                  <span
+                    className="member-avatar"
+                    style={{ background: member.color }}
+                  >
+                    {member.initials}
+                  </span>
+
+                  <span className="member-info">
+                    <span>
+                      <strong>{member.name}</strong>
+
+                      {isCurrentUser && (
+                        <span className="you-tag">You</span>
+                      )}
+                    </span>
+
+                    <small>
+                      {canOpen
+                        ? displayTitle
+                        : `${displayTitle} · Chores are private`}
+                    </small>
+                  </span>
+
+                  <span className="member-points">
+                    <strong>★ {member.points}</strong>
+                    <small>{member.chores} chores</small>
+                  </span>
+
+                  <span className="card-arrow">
+                    {canOpen ? '→' : '🔒'}
+                  </span>
+                </button>
+
+                {(canChangeManagement || canKick) && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem',
+                    }}
+                  >
+                    {canChangeManagement && (
+                      <button
+                        type="button"
+                        disabled={isUpdatingRole}
+                        onClick={() =>
+                          handleToggleManagement(member)
+                        }
+                        style={{
+                          flex: 1,
+                          border:
+                            '1px solid rgba(0, 0, 0, 0.18)',
+                          borderRadius: '12px',
+                          padding: '0 0.8rem',
+                          background: 'transparent',
+                          cursor: isUpdatingRole
+                            ? 'wait'
+                            : 'pointer',
+                        }}
+                      >
+                        {isUpdatingRole
+                          ? 'Updating...'
+                          : member.role === 'ADMIN'
+                            ? 'Remove management'
+                            : 'Grant management'}
+                      </button>
+                    )}
+
+                    {canKick && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleRemoveMember(member)
+                        }
+                        style={{
+                          flex: 1,
+                          border: '1px solid #c65a5a',
+                          borderRadius: '12px',
+                          padding: '0 0.9rem',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      {inviteModalOpen && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={() => setInviteModalOpen(false)}
+        >
+          <section
+            className="modal invite-code-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-code-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              className="modal-close"
+              type="button"
+              onClick={() => setInviteModalOpen(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+
+            <span className="modal-icon">🔑</span>
+
+            <h2 id="invite-code-title">
+              Household invite code
+            </h2>
+
+            <p>
+              Share this code with someone you want to invite to{' '}
+              {household.name}.
+            </p>
+
+            {inviteLoading ? (
+              <div className="invite-code-loading">
+                Loading invite code...
+              </div>
+            ) : inviteError ? (
+              <p
+                className="form-message error-message"
+                role="alert"
+              >
+                {inviteError}
+              </p>
+            ) : (
+              <>
+                <div className="invite-code-display">
+                  {inviteCode}
+                </div>
+
+                <button
+                  className="submit-button invite-copy-button"
+                  type="button"
+                  onClick={handleCopyInviteCode}
+                >
+                  {copied
+                    ? 'Copied ✓'
+                    : 'Copy invite code'}
+                </button>
+              </>
+            )}
+          </section>
+        </div>
+      )}
+    </main>
+  )
+}

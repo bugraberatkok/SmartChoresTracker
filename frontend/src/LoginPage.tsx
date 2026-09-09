@@ -1,3 +1,4 @@
+import type { AuthUser } from './api'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { login, ApiError } from './api'
@@ -24,7 +25,7 @@ export function EyeIcon({ hidden }: { hidden: boolean }) {
 
 type LoginPageProps = {
   onCreateAccount: () => void
-  onLogin: (token: string, user: { id: number; name: string; email: string }) => void
+  onLogin: (token: string, user: AuthUser) => void
 }
 
 export default function LoginPage({ onCreateAccount, onLogin }: LoginPageProps) {

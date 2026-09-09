@@ -85,7 +85,6 @@ export interface AuthUser {
   id: number
   name: string
   email: string
-  avatarKey: string | null
 }
 
 export interface AuthResponse {
@@ -110,16 +109,6 @@ export function register(name: string, email: string, password: string) {
 
 export function fetchCurrentUser() {
   return request<AuthUser>('/users/me')
-}
-
-export function updateCurrentUser(data: {
-  name?: string
-  avatarKey?: string
-}) {
-  return request<AuthUser>('/users/me', {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  })
 }
 
 // ---- Groups (Households) --------------------------------------------------
@@ -176,7 +165,6 @@ export interface GroupMemberResponse {
   userId: number
   name: string
   email: string
-  avatarKey: string | null
   role: 'OWNER' | 'ADMIN' | 'MEMBER'
   displayTitle: string | null
   joinedAt: string
