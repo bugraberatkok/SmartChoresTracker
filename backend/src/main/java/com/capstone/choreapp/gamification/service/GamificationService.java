@@ -6,6 +6,7 @@ import com.capstone.choreapp.chore.repository.ChoreRepository;
 import com.capstone.choreapp.gamification.dto.AchievementResponse;
 import com.capstone.choreapp.gamification.dto.LeaderboardEntryResponse;
 import com.capstone.choreapp.gamification.dto.ProgressDayResponse;
+import com.capstone.choreapp.gamification.dto.StreakResponse;
 import com.capstone.choreapp.group.membership.repository.GroupMembershipRepository;
 import com.capstone.choreapp.group.membership.service.GroupMembershipService;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -134,6 +137,22 @@ public class GamificationService {
                 )
                 .sum();
 
+        Set<LocalDate> activeDates = collectActiveDates(userChores);
+
+        LocalDate today = LocalDate.now(applicationZoneId);
+
+        LocalDate lastActiveDate = activeDates.stream()
+                .max(LocalDate::compareTo)
+                .orElse(null);
+
+        int currentStreak = lastActiveDate == null
+                ? 0
+                : calculateCurrentStreak(
+                activeDates,
+                today,
+                lastActiveDate
+        );
+
         return List.of(
                 new AchievementResponse(
                         "FIRST_CHORE",
@@ -144,6 +163,27 @@ public class GamificationService {
                         completedChores,
                         completedChores >= 1
                 ),
+
+                new AchievementResponse(
+                        "FIVE_CHORES",
+                        "Getting Productive",
+                        "Complete 5 chores",
+                        "🧹",
+                        5,
+                        completedChores,
+                        completedChores >= 5
+                ),
+
+                new AchievementResponse(
+                        "TWENTY_FIVE_CHORES",
+                        "Chore Machine",
+                        "Complete 25 chores",
+                        "💪",
+                        25,
+                        completedChores,
+                        completedChores >= 25
+                ),
+
                 new AchievementResponse(
                         "FIFTY_POINTS",
                         "Rising Star",
@@ -153,6 +193,7 @@ public class GamificationService {
                         totalPoints,
                         totalPoints >= 50
                 ),
+
                 new AchievementResponse(
                         "TWO_HUNDRED_POINTS",
                         "Chore Champion",
@@ -161,6 +202,36 @@ public class GamificationService {
                         200,
                         totalPoints,
                         totalPoints >= 200
+                ),
+
+                new AchievementResponse(
+                        "FIVE_HUNDRED_POINTS",
+                        "Point Collector",
+                        "Earn 500 total points",
+                        "💎",
+                        500,
+                        totalPoints,
+                        totalPoints >= 500
+                ),
+
+                new AchievementResponse(
+                        "THREE_DAY_STREAK",
+                        "On Fire",
+                        "Keep a 3 day streak",
+                        "🔥",
+                        3,
+                        currentStreak,
+                        currentStreak >= 3
+                ),
+
+                new AchievementResponse(
+                        "SEVEN_DAY_STREAK",
+                        "Unstoppable",
+                        "Keep a 7 day streak",
+                        "⚡",
+                        7,
+                        currentStreak,
+                        currentStreak >= 7
                 )
         );
     }
@@ -241,5 +312,122 @@ public class GamificationService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public StreakResponse getStreak(
+            Long groupId,
+            Long requesterId,
+            Long memberUserId
+    ) {
+        groupMembershipService.requireMember(groupId, requesterId);
+        groupMembershipService.requireMember(groupId, memberUserId);
+
+        List<Chore> userChores = choreRepository.findAllByGroupId(groupId)
+                .stream()
+                .filter(chore ->
+                        chore.getAssignedUser() != null
+                                && chore.getAssignedUser()
+                                .getId()
+                                .equals(memberUserId)
+                )
+                .toList();
+
+        Set<LocalDate> activeDates = collectActiveDates(userChores);
+
+        if (activeDates.isEmpty()) {
+            return new StreakResponse(0, 0, null);
+        }
+
+        LocalDate today = LocalDate.now(applicationZoneId);
+        LocalDate lastActiveDate = activeDates.stream()
+                .max(LocalDate::compareTo)
+                .orElseThrow();
+
+        int currentStreak = calculateCurrentStreak(
+                activeDates,
+                today,
+                lastActiveDate
+        );
+
+        int longestStreak = calculateLongestStreak(activeDates);
+
+        return new StreakResponse(
+                currentStreak,
+                longestStreak,
+                lastActiveDate
+        );
+    }
+
+    private int calculateCurrentStreak(
+            Set<LocalDate> activeDates,
+            LocalDate today,
+            LocalDate lastActiveDate
+    ) {
+        if (
+                !lastActiveDate.equals(today)
+                        && !lastActiveDate.equals(today.minusDays(1))
+        ) {
+            return 0;
+        }
+
+        int streak = 0;
+        LocalDate date = lastActiveDate;
+
+        while (activeDates.contains(date)) {
+            streak++;
+            date = date.minusDays(1);
+        }
+
+        return streak;
+    }
+
+    private int calculateLongestStreak(Set<LocalDate> activeDates) {
+        List<LocalDate> sortedDates = activeDates.stream()
+                .sorted()
+                .toList();
+
+        int longest = 0;
+        int current = 0;
+        LocalDate previous = null;
+
+        for (LocalDate date : sortedDates) {
+            if (previous == null || date.equals(previous.plusDays(1))) {
+                current++;
+            } else {
+                current = 1;
+            }
+
+            longest = Math.max(longest, current);
+            previous = date;
+        }
+
+        return longest;
+    }
+
+    private Set<LocalDate> collectActiveDates(List<Chore> chores) {
+
+        Set<LocalDate> activeDates = new HashSet<>();
+
+        for (Chore chore : chores) {
+
+            if (chore.isRecurring()) {
+                activeDates.addAll(chore.getCompletedDates());
+                continue;
+            }
+
+            if (
+                    chore.getStatus() == ChoreStatus.COMPLETED
+                            && chore.getCompletedAt() != null
+            ) {
+                LocalDate completedDate =
+                        chore.getCompletedAt()
+                                .atZone(applicationZoneId)
+                                .toLocalDate();
+
+                activeDates.add(completedDate);
+            }
+        }
+
+        return activeDates;
+    }
 
 }

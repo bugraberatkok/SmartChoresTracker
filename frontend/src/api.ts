@@ -344,6 +344,36 @@ export interface AchievementResponse {
 
 
 
+export interface StreakResponse {
+  currentStreak: number
+  longestStreak: number
+  lastActiveDate: string | null
+}
+
+export interface RewardResponse {
+  id: number
+  name: string
+  description: string | null
+  cost: number
+  active: boolean
+  createdAt: string
+}
+
+export interface RewardBalanceResponse {
+  earnedPoints: number
+  spentPoints: number
+  availablePoints: number
+}
+
+export interface RewardRedemptionResponse {
+  redemptionId: number
+  rewardId: number
+  rewardName: string
+  cost: number
+  remainingPoints: number
+  redeemedAt: string
+}
+
 export interface ProgressDayResponse {
   date: string
   day: string
@@ -358,8 +388,62 @@ export function fetchAchievements(groupId: number, memberUserId: number) {
 
 
 
+export function fetchStreak(groupId: number, memberUserId: number) {
+  return request<StreakResponse>(
+    `/groups/${groupId}/gamification/members/${memberUserId}/streak`,
+  )
+}
+
 export function fetchWeeklyProgress(groupId: number, memberUserId: number) {
   return request<ProgressDayResponse[]>(
     `/groups/${groupId}/gamification/members/${memberUserId}/progress`,
   )
+}
+
+
+export function fetchRewards(groupId: number) {
+  return request<RewardResponse[]>(`/groups/${groupId}/rewards`)
+}
+
+export function fetchRewardBalance(groupId: number) {
+  return request<RewardBalanceResponse>(`/groups/${groupId}/rewards/balance`)
+}
+
+export function createReward(
+  groupId: number,
+  data: { name: string; description?: string; cost: number },
+) {
+  return request<RewardResponse>(`/groups/${groupId}/rewards`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function redeemReward(groupId: number, rewardId: number) {
+  return request<RewardRedemptionResponse>(
+    `/groups/${groupId}/rewards/${rewardId}/redeem`,
+    { method: 'POST' },
+  )
+}
+
+export function deactivateReward(groupId: number, rewardId: number) {
+  return request<void>(`/groups/${groupId}/rewards/${rewardId}`, {
+    method: 'DELETE',
+  })
+}
+
+export type ActivityType = 'CHORE_CREATED' | 'CHORE_COMPLETED'
+
+export interface ActivityResponse {
+  id: number
+  type: ActivityType
+  actorUserId: number
+  actorName: string
+  choreId: number | null
+  choreTitle: string
+  createdAt: string
+}
+
+export function fetchActivities(groupId: number) {
+  return request<ActivityResponse[]>(`/groups/${groupId}/activities`)
 }

@@ -10,10 +10,12 @@ import com.capstone.choreapp.group.membership.service.GroupMembershipService;
 import com.capstone.choreapp.user.entity.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.api.BeforeEach;
+import com.capstone.choreapp.gamification.dto.StreakResponse;
 
+import java.time.ZoneId;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -33,8 +35,19 @@ class GamificationServiceTest {
     @Mock
     private GroupMembershipService groupMembershipService;
 
-    @InjectMocks
     private GamificationService gamificationService;
+
+    private final ZoneId testZoneId = ZoneId.of("UTC");
+
+    @BeforeEach
+    void setUp() {
+        gamificationService = new GamificationService(
+                groupMembershipRepository,
+                choreRepository,
+                groupMembershipService,
+                testZoneId
+        );
+    }
 
     @Test
     void shouldCalculateLeaderboardPointsAndRanks() {
@@ -127,5 +140,180 @@ class GamificationServiceTest {
 
         verify(groupMembershipService)
                 .requireMember(groupId, requesterId);
+
+
+    }
+
+    @Test
+    void shouldCalculateCurrentAndLongestStreak() {
+
+        Long groupId = 10L;
+        Long requesterId = 99L;
+        Long memberUserId = 1L;
+
+        LocalDate today = LocalDate.now(testZoneId);
+
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(memberUserId);
+
+        Chore recurringChore = mock(Chore.class);
+
+        when(recurringChore.getAssignedUser())
+                .thenReturn(user);
+
+        when(recurringChore.isRecurring())
+                .thenReturn(true);
+
+        when(recurringChore.getCompletedDates())
+                .thenReturn(Set.of(
+                        today.minusDays(5),
+                        today.minusDays(4),
+                        today.minusDays(2),
+                        today.minusDays(1),
+                        today
+                ));
+
+        when(choreRepository.findAllByGroupId(groupId))
+                .thenReturn(List.of(recurringChore));
+
+        StreakResponse result =
+                gamificationService.getStreak(
+                        groupId,
+                        requesterId,
+                        memberUserId
+                );
+
+        assertEquals(3, result.currentStreak());
+        assertEquals(3, result.longestStreak());
+        assertEquals(today, result.lastActiveDate());
+
+        verify(groupMembershipService)
+                .requireMember(groupId, requesterId);
+
+        verify(groupMembershipService)
+                .requireMember(groupId, memberUserId);
+    }
+
+    @Test
+    void shouldIncludeCompletedNonRecurringChoreInStreak() {
+
+        Long groupId = 10L;
+        Long requesterId = 99L;
+        Long memberUserId = 1L;
+
+        LocalDate today = LocalDate.now(testZoneId);
+
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(memberUserId);
+
+        Chore normalChore = mock(Chore.class);
+
+        when(normalChore.getAssignedUser())
+                .thenReturn(user);
+
+        when(normalChore.isRecurring())
+                .thenReturn(false);
+
+        when(normalChore.getStatus())
+                .thenReturn(ChoreStatus.COMPLETED);
+
+        when(normalChore.getCompletedAt())
+                .thenReturn(
+                        today.atTime(12, 0)
+                                .atZone(testZoneId)
+                                .toInstant()
+                );
+
+        when(choreRepository.findAllByGroupId(groupId))
+                .thenReturn(List.of(normalChore));
+
+        StreakResponse result =
+                gamificationService.getStreak(
+                        groupId,
+                        requesterId,
+                        memberUserId
+                );
+
+        assertEquals(1, result.currentStreak());
+        assertEquals(1, result.longestStreak());
+        assertEquals(today, result.lastActiveDate());
+    }
+
+    @Test
+    void shouldReturnEmptyStreakWhenUserHasNoCompletedChores() {
+
+        Long groupId = 10L;
+        Long requesterId = 99L;
+        Long memberUserId = 1L;
+
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(memberUserId);
+
+        Chore incompleteChore = mock(Chore.class);
+
+        when(incompleteChore.getAssignedUser())
+                .thenReturn(user);
+
+        when(incompleteChore.isRecurring())
+                .thenReturn(false);
+
+        when(incompleteChore.getStatus())
+                .thenReturn(ChoreStatus.PENDING);
+
+        when(choreRepository.findAllByGroupId(groupId))
+                .thenReturn(List.of(incompleteChore));
+
+        StreakResponse result =
+                gamificationService.getStreak(
+                        groupId,
+                        requesterId,
+                        memberUserId
+                );
+
+        assertEquals(0, result.currentStreak());
+        assertEquals(0, result.longestStreak());
+        assertEquals(null, result.lastActiveDate());
+    }
+
+    @Test
+    void shouldReturnZeroCurrentStreakWhenStreakIsBroken() {
+
+        Long groupId = 10L;
+        Long requesterId = 99L;
+        Long memberUserId = 1L;
+
+        LocalDate today = LocalDate.now(testZoneId);
+
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(memberUserId);
+
+        Chore recurringChore = mock(Chore.class);
+
+        when(recurringChore.getAssignedUser())
+                .thenReturn(user);
+
+        when(recurringChore.isRecurring())
+                .thenReturn(true);
+
+        when(recurringChore.getCompletedDates())
+                .thenReturn(Set.of(
+                        today.minusDays(4),
+                        today.minusDays(3),
+                        today.minusDays(2)
+                ));
+
+        when(choreRepository.findAllByGroupId(groupId))
+                .thenReturn(List.of(recurringChore));
+
+        StreakResponse result =
+                gamificationService.getStreak(
+                        groupId,
+                        requesterId,
+                        memberUserId
+                );
+
+        assertEquals(0, result.currentStreak());
+        assertEquals(3, result.longestStreak());
+        assertEquals(today.minusDays(2), result.lastActiveDate());
     }
 }

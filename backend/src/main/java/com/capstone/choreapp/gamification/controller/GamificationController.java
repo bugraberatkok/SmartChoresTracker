@@ -3,6 +3,7 @@ package com.capstone.choreapp.gamification.controller;
 import com.capstone.choreapp.gamification.dto.AchievementResponse;
 import com.capstone.choreapp.gamification.dto.LeaderboardEntryResponse;
 import com.capstone.choreapp.gamification.dto.ProgressDayResponse;
+import com.capstone.choreapp.gamification.dto.StreakResponse;
 import com.capstone.choreapp.gamification.service.GamificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -54,6 +55,21 @@ public class GamificationController {
         Long requesterId = Long.valueOf(authentication.getName());
 
         return gamificationService.getWeeklyProgress(
+                groupId,
+                requesterId,
+                memberUserId
+        );
+    }
+
+    @GetMapping("/members/{memberUserId}/streak")
+    public StreakResponse getStreak(
+            @PathVariable Long groupId,
+            @PathVariable Long memberUserId,
+            Authentication authentication
+    ) {
+        Long requesterId = Long.valueOf(authentication.getName());
+
+        return gamificationService.getStreak(
                 groupId,
                 requesterId,
                 memberUserId

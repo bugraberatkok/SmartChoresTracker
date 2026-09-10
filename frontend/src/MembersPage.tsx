@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { HomeMark } from './LoginPage'
 import type { Household, Member } from './types'
 import { AVATAR_EMOJIS, avatarEmoji, deriveInitials } from './types'
@@ -11,6 +11,8 @@ import {
   updateCurrentUser,
   type GroupMemberResponse,
   type AuthUser,
+  fetchActivities,
+  type ActivityResponse,
 } from './api'
 
 type Props = {
@@ -65,6 +67,34 @@ function todaySummary(member: Member): string {
   return `${completed} of ${total} chores done today`
 }
 
+
+function formatActivityTime(value: string): string {
+  const date = new Date(value)
+  const now = new Date()
+  const minutes = Math.floor(Math.max(0, now.getTime() - date.getTime()) / 60000)
+
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days}d ago`
+
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function activityText(activity: ActivityResponse): string {
+  return activity.type === 'CHORE_COMPLETED'
+    ? `${activity.actorName} completed "${activity.choreTitle}"`
+    : `${activity.actorName} created "${activity.choreTitle}"`
+}
+
 export default function MembersPage({
   household,
   currentUserId,
@@ -96,6 +126,11 @@ export default function MembersPage({
 
   const [managementMember, setManagementMember] = useState<Member | null>(null)
 
+  const [activities, setActivities] = useState<ActivityResponse[]>([])
+  const [activityOpen, setActivityOpen] = useState(false)
+  const [activityLoading, setActivityLoading] = useState(true)
+  const [activityError, setActivityError] = useState('')
+
   const currentMember =
     household.members.find((member) => member.id === currentUserId) ?? null
 
@@ -118,6 +153,76 @@ export default function MembersPage({
     })
   })
 
+
+
+  const activityStorageKey =
+    currentUserId == null
+      ? null
+      : `activity:lastSeen:${currentUserId}:${household.id}`
+
+  const lastSeenActivityAt = activityStorageKey
+    ? localStorage.getItem(activityStorageKey)
+    : null
+
+  const newActivityCount = useMemo(() => {
+    if (!lastSeenActivityAt) return activities.length
+
+    const lastSeenTime = new Date(lastSeenActivityAt).getTime()
+
+    return activities.filter(
+      (activity) => new Date(activity.createdAt).getTime() > lastSeenTime,
+    ).length
+  }, [activities, lastSeenActivityAt])
+
+  useEffect(() => {
+    let cancelled = false
+
+    fetchActivities(household.id)
+      .then((data) => {
+        if (!cancelled) setActivities(data)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setActivityError(
+            err instanceof ApiError
+              ? err.message
+              : 'Failed to load activity history',
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setActivityLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [household.id])
+
+  const handleToggleActivity = async () => {
+    const nextOpen = !activityOpen
+    setActivityOpen(nextOpen)
+
+    if (!nextOpen) return
+
+    setActivityError('')
+
+    try {
+      const data = await fetchActivities(household.id)
+      setActivities(data)
+
+      const newest = data[0]?.createdAt
+      if (activityStorageKey && newest) {
+        localStorage.setItem(activityStorageKey, newest)
+      }
+    } catch (err) {
+      setActivityError(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to load activity history',
+      )
+    }
+  }
 
   const handleShowInviteCode = async () => {
     setInviteModalOpen(true)
@@ -337,6 +442,71 @@ export default function MembersPage({
             </div>
           </div>
         </div>
+
+
+        <section className={`activity-history ${activityOpen ? 'open' : ''}`}>
+          <button
+            className="activity-history-toggle"
+            type="button"
+            onClick={handleToggleActivity}
+            aria-expanded={activityOpen}
+          >
+            <span className="activity-history-title">
+              <span className="activity-history-icon">◷</span>
+              <strong>Activity history</strong>
+            </span>
+
+            <span className="activity-history-meta">
+              {!activityOpen && newActivityCount > 0 && (
+                <span className="activity-new-badge">{newActivityCount} new</span>
+              )}
+              <span className="activity-chevron" aria-hidden="true">
+                {activityOpen ? '▴' : '▾'}
+              </span>
+            </span>
+          </button>
+
+          {activityOpen && (
+            <div className="activity-history-panel">
+              {activityLoading && (
+                <p className="activity-history-message">Loading activity...</p>
+              )}
+
+              {!activityLoading && activityError && (
+                <p className="activity-history-message activity-history-error" role="alert">
+                  {activityError}
+                </p>
+              )}
+
+              {!activityLoading && !activityError && activities.length === 0 && (
+                <p className="activity-history-message">No activity yet.</p>
+              )}
+
+              {!activityLoading && !activityError && activities.length > 0 && (
+                <div className="activity-history-list">
+                  {activities.map((activity) => (
+                    <div className="activity-history-item" key={activity.id}>
+                      <span
+                        className={`activity-type-icon ${
+                          activity.type === 'CHORE_COMPLETED'
+                            ? 'completed'
+                            : 'created'
+                        }`}
+                      >
+                        {activity.type === 'CHORE_COMPLETED' ? '✓' : '+'}
+                      </span>
+
+                      <span className="activity-history-copy">
+                        <strong>{activityText(activity)}</strong>
+                        <small>{formatActivityTime(activity.createdAt)}</small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
 
         <div className="members-list">
           {household.members.length === 0 && (

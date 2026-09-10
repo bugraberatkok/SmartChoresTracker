@@ -1,5 +1,6 @@
 package com.capstone.choreapp.chore.service;
 
+import com.capstone.choreapp.activity.service.ActivityService;
 import com.capstone.choreapp.chore.dto.CreateChoreRequest;
 import com.capstone.choreapp.chore.dto.ChoreResponse;
 import com.capstone.choreapp.chore.dto.UpdateChoreRequest;
@@ -35,6 +36,7 @@ public class ChoreService {
     private final GroupMembershipService groupMembershipService;
     private final ChoreMapper choreMapper;
     private final ZoneId applicationZoneId;
+    private final ActivityService activityService;
 
 
     @Transactional
@@ -121,6 +123,12 @@ public class ChoreService {
         chore.setDueDate(request.dueDate());
 
         Chore savedChore = choreRepository.save(chore);
+
+        activityService.recordChoreCreated(
+                group,
+                creator,
+                savedChore
+        );
 
         return choreMapper.toResponse(savedChore);
     }
@@ -308,20 +316,49 @@ public class ChoreService {
                 );
             }
 
-            chore.getCompletedDates().add(date);
+            boolean newlyCompleted =
+                    chore.getCompletedDates().add(date);
+
+            if (!newlyCompleted) {
+                return choreMapper.toResponse(chore);
+            }
+
             chore.setCompletedAt(Instant.now());
+
+            User actor = userRepository.findById(requesterId)
+                    .orElseThrow(() ->
+                            new UserNotFoundException(
+                                    "Authenticated user was not found"
+                            )
+                    );
+
+            activityService.recordChoreCompleted(
+                    chore.getGroup(),
+                    actor,
+                    chore
+            );
 
             return choreMapper.toResponse(chore);
         }
 
         // Tekrar request gelirse sorun çıkarmasın
-        if (chore.getStatus() == ChoreStatus.COMPLETED) {
-            return choreMapper.toResponse(chore);
-        }
-
         chore.setStatus(ChoreStatus.COMPLETED);
         chore.setCompletedAt(Instant.now());
 
+        User actor = userRepository.findById(requesterId)
+                .orElseThrow(() ->
+                        new UserNotFoundException(
+                                "Authenticated user was not found"
+                        )
+                );
+
+        activityService.recordChoreCompleted(
+                chore.getGroup(),
+                actor,
+                chore
+        );
+
         return choreMapper.toResponse(chore);
+
     }
 }

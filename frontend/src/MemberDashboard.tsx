@@ -21,9 +21,18 @@ import {
   type AchievementResponse,
   fetchWeeklyProgress,
   type ProgressDayResponse,
+  fetchStreak,
+  type StreakResponse,
+  fetchRewards,
+  fetchRewardBalance,
+  createReward,
+  redeemReward,
+  deactivateReward,
+  type RewardResponse,
+  type RewardBalanceResponse,
 } from './api'
 
-type Tab = 'chores' | 'trophies' | 'progress'
+type Tab = 'chores' | 'trophies' | 'rewards' | 'progress'
 
 type Chore = {
   id: number
@@ -120,6 +129,14 @@ export default function MemberDashboard({
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntryResponse[]>([])
   const [achievements, setAchievements] = useState<AchievementResponse[]>([])
   const [progressData, setProgressData] = useState<ProgressDayResponse[]>([])
+  const [rewards, setRewards] = useState<RewardResponse[]>([])
+  const [rewardBalance, setRewardBalance] = useState<RewardBalanceResponse | null>(null)
+  const [rewardLoading, setRewardLoading] = useState(true)
+  const [rewardError, setRewardError] = useState('')
+  const [showRewardForm, setShowRewardForm] = useState(false)
+  const [redeemingRewardId, setRedeemingRewardId] = useState<number | null>(null)
+  const [deletingReward, setDeletingReward] = useState<RewardResponse | null>(null)
+  const [streak, setStreak] = useState<StreakResponse | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [editingChore, setEditingChore] = useState<Chore | null>(null)
   const [editingRecurring, setEditingRecurring] = useState(false)
@@ -196,6 +213,24 @@ export default function MemberDashboard({
   useEffect(() => {
     let cancelled = false
 
+    fetchStreak(household.id, member.id)
+      .then((data) => {
+        if (!cancelled) {
+          setStreak(data)
+        }
+      })
+      .catch(() => {
+        // keep empty
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [household.id, member.id])
+
+  useEffect(() => {
+    let cancelled = false
+
     fetchWeeklyProgress(household.id, member.id)
       .then((data) => {
         if (!cancelled) {
@@ -204,6 +239,33 @@ export default function MemberDashboard({
       })
       .catch(() => {
         // keep empty
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [household.id, member.id])
+
+  useEffect(() => {
+    let cancelled = false
+
+
+    Promise.all([
+      fetchRewards(household.id),
+      fetchRewardBalance(household.id),
+    ])
+      .then(([rewardData, balanceData]) => {
+        if (cancelled) return
+        setRewards(rewardData)
+        setRewardBalance(balanceData)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setRewardError(err instanceof ApiError ? err.message : 'Failed to load rewards')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRewardLoading(false)
       })
 
     return () => {
@@ -254,11 +316,18 @@ export default function MemberDashboard({
         fetchLeaderboard(household.id),
         fetchWeeklyProgress(household.id, member.id),
         fetchAchievements(household.id, member.id),
+        fetchStreak(household.id, member.id),
       ])
-        .then(([refreshedLeaderboard, refreshedProgress, refreshedAchievements]) => {
+        .then(([
+          refreshedLeaderboard,
+          refreshedProgress,
+          refreshedAchievements,
+          refreshedStreak,
+        ]) => {
           setLeaderboard(refreshedLeaderboard)
           setProgressData(refreshedProgress)
           setAchievements(refreshedAchievements)
+          setStreak(refreshedStreak)
         })
         .catch(() => {
           // Do not report the chore completion as failed if only a refresh fails.
@@ -322,9 +391,15 @@ export default function MemberDashboard({
       const deletedRecord = groupChores.find((item) => item.id === deletingChore.backendId)
       if (deletedRecord) setPoints((value) => Math.max(0, value - (deletedRecord.points ?? 0) * (deletedRecord.recurring ? deletedRecord.completedDates.length : deletedRecord.status === 'COMPLETED' ? 1 : 0)))
       setDeletingChore(null)
-      // refresh progress after deletion
-      fetchWeeklyProgress(household.id, member.id)
-        .then(setProgressData)
+      // Refresh derived gamification after deletion.
+      void Promise.all([
+        fetchWeeklyProgress(household.id, member.id),
+        fetchStreak(household.id, member.id),
+      ])
+        .then(([refreshedProgress, refreshedStreak]) => {
+          setProgressData(refreshedProgress)
+          setStreak(refreshedStreak)
+        })
         .catch(() => {
           // deletion already succeeded
         })
@@ -369,6 +444,72 @@ export default function MemberDashboard({
     }
   }
 
+  const submitReward = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setRewardError('')
+
+    const data = new FormData(event.currentTarget)
+    const name = String(data.get('name') ?? '').trim()
+    const description = String(data.get('description') ?? '').trim()
+    const cost = Number(data.get('cost'))
+
+    if (!name) {
+      setRewardError('Reward name is required')
+      return
+    }
+
+    if (!Number.isFinite(cost) || cost < 1) {
+      setRewardError('Reward cost must be at least 1 point')
+      return
+    }
+
+    try {
+      const created = await createReward(household.id, {
+        name,
+        description,
+        cost,
+      })
+      setRewards((current) => [created, ...current])
+      setShowRewardForm(false)
+    } catch (err) {
+      setRewardError(err instanceof ApiError ? err.message : 'Failed to create reward')
+    }
+  }
+
+  const handleRedeemReward = async (reward: RewardResponse) => {
+    setRewardError('')
+    setRedeemingRewardId(reward.id)
+
+    try {
+      const result = await redeemReward(household.id, reward.id)
+      setRewardBalance((current) => current
+        ? {
+            ...current,
+            spentPoints: current.spentPoints + result.cost,
+            availablePoints: result.remainingPoints,
+          }
+        : current,
+      )
+    } catch (err) {
+      setRewardError(err instanceof ApiError ? err.message : 'Failed to redeem reward')
+    } finally {
+      setRedeemingRewardId(null)
+    }
+  }
+
+  const confirmDeactivateReward = async () => {
+    if (!deletingReward) return
+
+    setRewardError('')
+    try {
+      await deactivateReward(household.id, deletingReward.id)
+      setRewards((current) => current.filter((reward) => reward.id !== deletingReward.id))
+      setDeletingReward(null)
+    } catch (err) {
+      setRewardError(err instanceof ApiError ? err.message : 'Failed to remove reward')
+    }
+  }
+
   return (
     <main className="app-shell member-dashboard">
       <header className="app-header dashboard-header">
@@ -389,12 +530,32 @@ export default function MemberDashboard({
         <button className="back-button" type="button" onClick={onBack}>← All members</button>
         <div className="member-hero">
           <div className="dashboard-person"><span className="dashboard-avatar" style={{ background: member.color }}>{avatarEmoji(member.avatarKey) ?? member.initials}</span><div><span className="eyebrow">Daily dashboard</span><h1>{member.name}</h1><p>{completedCount} of {dailyChores.length} chores complete today</p></div></div>
-          <div className="dashboard-score"><span>★</span><div><strong>{points}</strong><small>points earned</small></div></div>
+          <div className="dashboard-stats">
+            <div className="dashboard-score">
+              <span>★</span>
+              <div>
+                <strong>{points}</strong>
+                <small>points earned</small>
+              </div>
+            </div>
+
+            <div
+              className="dashboard-streak"
+              title="Complete at least one chore on consecutive days to keep your streak alive."
+            >
+              <span>🔥</span>
+              <div>
+                <strong>{streak?.currentStreak ?? 0}</strong>
+                <small>day streak · best {streak?.longestStreak ?? 0}</small>
+              </div>
+            </div>
+          </div>
         </div>
 
         <nav className="dashboard-tabs" aria-label="Member dashboard">
           <button className={tab === 'chores' ? 'active' : ''} onClick={() => setTab('chores')}><span>✓</span> Chores</button>
           <button className={tab === 'trophies' ? 'active' : ''} onClick={() => setTab('trophies')}><span>♕</span> Trophies</button>
+          <button className={tab === 'rewards' ? 'active' : ''} onClick={() => setTab('rewards')}><span>🎁</span> Rewards</button>
           <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')}><span>↗</span> Progress</button>
         </nav>
 
@@ -418,6 +579,99 @@ export default function MemberDashboard({
         </>}
 
         {tab === 'trophies' && <section className="tab-page"><div className="tab-page-heading"><span className="eyebrow">Badge cabinet</span><h2>Trophies</h2><p>Every completed chore gets you closer to a new achievement.</p></div><div className="trophy-grid">{achievements.map((achievement) => <article className={`trophy-card ${achievement.earned ? 'earned' : ''}`} key={achievement.code}><span>{achievement.icon}</span><small>{achievement.earned ? 'Earned' : `${Math.min(achievement.currentValue, achievement.requiredValue)} / ${achievement.requiredValue}`}</small><h3>{achievement.name}</h3><p>{achievement.description}</p>{achievement.earned && <i>✓</i>}</article>)}<article className={`trophy-card badges-card ${points >= 20 ? 'earned' : ''}`}><span>🎖️</span><small>{points % 20} / 20 pts to next</small><strong className="badge-count">{Math.floor(points / 20)}</strong><h3>Badges earned</h3><p>One badge earned for every 20 points.</p><div className="earned-badges">{Array.from({ length: Math.floor(points / 20) }, (_, index) => <span key={index} title={`Badge ${index + 1}`}>🏅</span>)}{points < 20 && <em>No badges yet</em>}</div></article></div></section>}
+
+        {tab === 'rewards' && (
+          <section className="tab-page">
+            <div className="tab-page-heading rewards-heading">
+              <div>
+                <span className="eyebrow">Household perks</span>
+                <h2>Rewards</h2>
+                <p>Spend points earned from completed chores on household rewards.</p>
+              </div>
+              {household.isAdmin && (
+                <button
+                  className="add-chore-button"
+                  type="button"
+                  onClick={() => {
+                    setRewardError('')
+                    setShowRewardForm(true)
+                  }}
+                >
+                  <span>+</span> Add reward
+                </button>
+              )}
+            </div>
+
+            <div className="reward-balance-card">
+              <div>
+                <span>Available balance</span>
+                <strong>{rewardBalance?.availablePoints ?? 0} pts</strong>
+              </div>
+              <div className="reward-balance-breakdown">
+                <span>Earned <b>{rewardBalance?.earnedPoints ?? 0}</b></span>
+                <span>Spent <b>{rewardBalance?.spentPoints ?? 0}</b></span>
+              </div>
+            </div>
+
+            {rewardError && (
+              <p className="form-message error-message" role="alert">
+                {rewardError}
+              </p>
+            )}
+
+            {rewardLoading ? (
+              <p className="reward-loading">Loading rewards...</p>
+            ) : rewards.length === 0 ? (
+              <div className="empty-state reward-empty">
+                <span>🎁</span>
+                <h3>No rewards yet</h3>
+                <p>{household.isAdmin ? 'Create the first household reward.' : 'Your household managers have not added rewards yet.'}</p>
+              </div>
+            ) : (
+              <div className="reward-grid">
+                {rewards.map((reward) => {
+                  const affordable = (rewardBalance?.availablePoints ?? 0) >= reward.cost
+
+                  return (
+                    <article className="reward-card" key={reward.id}>
+                      <div className="reward-card-top">
+                        <span className="reward-gift">🎁</span>
+                        <strong>{reward.cost} pts</strong>
+                      </div>
+                      <h3>{reward.name}</h3>
+                      <p>{reward.description || 'A custom household reward.'}</p>
+
+                      <div className="reward-card-actions">
+                        <button
+                          className="submit-button reward-redeem"
+                          type="button"
+                          disabled={!affordable || redeemingRewardId === reward.id}
+                          onClick={() => handleRedeemReward(reward)}
+                        >
+                          {redeemingRewardId === reward.id
+                            ? 'Redeeming...'
+                            : affordable
+                              ? 'Redeem'
+                              : 'Not enough points'}
+                        </button>
+
+                        {household.isAdmin && (
+                          <button
+                            className="member-secondary-action reward-remove"
+                            type="button"
+                            onClick={() => setDeletingReward(reward)}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         {tab === 'progress' && <section className="tab-page"><div className="tab-page-heading"><span className="eyebrow">This week</span><h2>Progress</h2><p>See consistency, completed chores, and points earned over time.</p></div><div className="stats-row"><div><strong>{chores.filter((c) => c.completed).length}</strong><span>Chores completed</span></div><div><strong>{points}</strong><span>Total points</span></div><div><strong>{todaysChores.length}</strong><span>Today's chores</span></div></div><div className="progress-chart"><div className="chart-top"><strong>Weekly activity</strong><span>Chores completed</span></div><div className="line-chart"><svg viewBox="0 0 700 225" role="img" aria-label="Line graph of chores completed this week"><line x1="30" y1="35" x2="666" y2="35" /><line x1="30" y1="112" x2="666" y2="112" /><line x1="30" y1="190" x2="666" y2="190" /><polyline className="activity-line" points={linePoints} />{graphData.map((item, index) => <g key={item.day}><circle cx={30 + index * 106} cy={190 - item.value * 1.55} r="6" /><text className="graph-value" x={30 + index * 106} y={178 - item.value * 1.55}>{item.count}</text><text className="graph-day" x={30 + index * 106} y="216">{item.day}</text></g>)}</svg></div></div><div className="ranking-table"><div className="ranking-heading"><span>🏁</span><div><strong>Household ranking</strong><small>Ranked by total points</small></div></div>{ranking.map((entry) => <div className={`ranking-row ${entry.userId === member.id ? 'current-member' : ''}`} key={entry.userId}><strong>#{entry.rank}</strong><span>{entry.name}{entry.userId === member.id && <small>You</small>}</span><b>{entry.totalPoints} pts</b></div>)}</div></section>}
       </section>
@@ -445,6 +699,81 @@ export default function MemberDashboard({
               {actionError && <p className="form-message error-message" role="alert">{actionError}</p>}
               <button className="submit-button" type="submit">Save changes <span>→</span></button>
             </form>
+          </section>
+        </div>
+      )}
+
+      {showRewardForm && household.isAdmin && (
+        <div className="modal-backdrop" onMouseDown={() => setShowRewardForm(false)}>
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-reward-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button className="modal-close" type="button" onClick={() => setShowRewardForm(false)}>×</button>
+            <span className="modal-icon">🎁</span>
+            <h2 id="add-reward-title">Add household reward</h2>
+            <p>Create a reward members can unlock with their available points.</p>
+
+            <form onSubmit={submitReward}>
+              <label htmlFor="reward-name">Reward name</label>
+              <input
+                className="modal-input"
+                id="reward-name"
+                name="name"
+                placeholder="e.g. Choose dinner"
+                maxLength={100}
+                required
+              />
+
+              <label htmlFor="reward-description">Description</label>
+              <input
+                className="modal-input"
+                id="reward-description"
+                name="description"
+                placeholder="e.g. Pick what the household eats tonight"
+                maxLength={300}
+              />
+
+              <label htmlFor="reward-cost">Cost</label>
+              <input
+                className="modal-input"
+                id="reward-cost"
+                name="cost"
+                type="number"
+                min="1"
+                max="100000"
+                defaultValue="50"
+                required
+              />
+
+              {rewardError && <p className="form-message error-message" role="alert">{rewardError}</p>}
+              <button className="submit-button" type="submit">Create reward <span>→</span></button>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {deletingReward && household.isAdmin && (
+        <div className="modal-backdrop" onMouseDown={() => setDeletingReward(null)}>
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-reward-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button className="modal-close" type="button" onClick={() => setDeletingReward(null)}>×</button>
+            <span className="modal-icon">🎁</span>
+            <h2 id="delete-reward-title">Remove reward?</h2>
+            <p><strong>{deletingReward.name}</strong> will no longer be available to redeem.</p>
+            {rewardError && <p className="form-message error-message" role="alert">{rewardError}</p>}
+            <div className="title-modal-actions">
+              <button className="member-secondary-action" type="button" onClick={() => setDeletingReward(null)}>Cancel</button>
+              <button className="submit-button" type="button" onClick={confirmDeactivateReward}>Remove reward</button>
+            </div>
           </section>
         </div>
       )}
