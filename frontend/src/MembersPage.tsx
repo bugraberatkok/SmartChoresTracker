@@ -90,9 +90,13 @@ function formatActivityTime(value: string): string {
 }
 
 function activityText(activity: ActivityResponse): string {
-  return activity.type === 'CHORE_COMPLETED'
-    ? `${activity.actorName} completed "${activity.choreTitle}"`
-    : `${activity.actorName} created "${activity.choreTitle}"`
+  if (activity.type === 'CHORE_COMPLETED') {
+    return `${activity.actorName} completed "${activity.choreTitle}"`
+  }
+  if (activity.type === 'CHORE_UNCOMPLETED') {
+    return `${activity.actorName} marked "${activity.choreTitle}" incomplete`
+  }
+  return `${activity.actorName} created "${activity.choreTitle}"`
 }
 
 export default function MembersPage({
@@ -490,10 +494,16 @@ export default function MembersPage({
                         className={`activity-type-icon ${
                           activity.type === 'CHORE_COMPLETED'
                             ? 'completed'
-                            : 'created'
+                            : activity.type === 'CHORE_UNCOMPLETED'
+                              ? 'uncompleted'
+                              : 'created'
                         }`}
                       >
-                        {activity.type === 'CHORE_COMPLETED' ? '✓' : '+'}
+                        {activity.type === 'CHORE_COMPLETED'
+                          ? '✓'
+                          : activity.type === 'CHORE_UNCOMPLETED'
+                            ? '↶'
+                            : '+'}
                       </span>
 
                       <span className="activity-history-copy">

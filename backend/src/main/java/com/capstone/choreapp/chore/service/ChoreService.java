@@ -361,4 +361,53 @@ public class ChoreService {
         return choreMapper.toResponse(chore);
 
     }
+
+    @Transactional
+    public ChoreResponse uncompleteChore(
+            Long groupId,
+            Long choreId,
+            Long requesterId,
+            LocalDate occurrenceDate
+    ) {
+        groupMembershipService.requireMember(groupId, requesterId);
+
+        Chore chore = choreRepository.findById(choreId)
+                .orElseThrow(() -> new ChoreNotFoundException(choreId));
+
+        if (!chore.getGroup().getId().equals(groupId)) {
+            throw new ChoreNotFoundException(choreId);
+        }
+
+        boolean isAssignedUser = chore.getAssignedUser() != null
+                && chore.getAssignedUser().getId().equals(requesterId);
+
+        if (!isAssignedUser) {
+            groupMembershipService.requireManager(groupId, requesterId);
+        }
+
+        boolean changed;
+        if (chore.isRecurring()) {
+            LocalDate date = occurrenceDate != null
+                    ? occurrenceDate
+                    : LocalDate.now(applicationZoneId);
+            changed = chore.getCompletedDates().remove(date);
+            if (chore.getCompletedDates().isEmpty()) {
+                chore.setCompletedAt(null);
+            }
+        } else {
+            changed = chore.getStatus() == ChoreStatus.COMPLETED;
+            chore.setStatus(ChoreStatus.PENDING);
+            chore.setCompletedAt(null);
+        }
+
+        if (changed) {
+            User actor = userRepository.findById(requesterId)
+                    .orElseThrow(() -> new UserNotFoundException(
+                            "Authenticated user was not found"
+                    ));
+            activityService.recordChoreUncompleted(chore.getGroup(), actor, chore);
+        }
+
+        return choreMapper.toResponse(chore);
+    }
 }

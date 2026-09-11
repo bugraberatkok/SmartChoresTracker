@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.UUID;
 
 import com.capstone.choreapp.chore.repository.ChoreRepository;
+import com.capstone.choreapp.activity.repository.ActivityEventRepository;
+import com.capstone.choreapp.gamification.reward.repository.RewardRepository;
+import com.capstone.choreapp.gamification.reward.repository.RewardRedemptionRepository;
 import com.capstone.choreapp.group.membership.service.GroupMembershipService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +39,9 @@ public class GroupService {
     private final GroupMembershipMapper groupMembershipMapper;
     private final GroupMembershipService groupMembershipService;
     private final ChoreRepository choreRepository;
+    private final ActivityEventRepository activityEventRepository;
+    private final RewardRepository rewardRepository;
+    private final RewardRedemptionRepository rewardRedemptionRepository;
 
     @Transactional
     public GroupResponse createGroup(
@@ -115,6 +121,12 @@ public class GroupService {
                         new GroupNotFoundException(groupId)
                 );
 
+        rewardRedemptionRepository.deleteAllByGroupId(groupId);
+        rewardRepository.deleteAllByGroupId(groupId);
+        activityEventRepository.deleteAllByGroupId(groupId);
+
+        choreRepository.deleteCompletionDatesByGroupId(groupId);
+        choreRepository.deleteRecurrenceDaysByGroupId(groupId);
         choreRepository.deleteAllByGroupId(groupId);
 
         groupMembershipRepository.deleteAllByGroupId(groupId);

@@ -3,6 +3,7 @@ package com.capstone.choreapp.gamification.reward.repository;
 import com.capstone.choreapp.gamification.reward.entity.RewardRedemption;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 public interface RewardRedemptionRepository
@@ -18,4 +19,8 @@ public interface RewardRedemptionRepository
             @Param("groupId") Long groupId,
             @Param("userId") Long userId
     );
+
+    @Modifying
+    @Query("delete from RewardRedemption redemption where redemption.reward.group.id = :groupId")
+    void deleteAllByGroupId(@Param("groupId") Long groupId);
 }

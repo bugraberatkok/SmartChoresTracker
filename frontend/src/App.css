@@ -80,6 +80,7 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
 .app-header { height: 82px; padding: 0 clamp(24px, 5vw, 76px); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e3e9e5; background: rgba(255,255,255,.94); }
 .user-menu, .household-chip { display: flex; align-items: center; gap: 10px; color: #405c57; font-size: 13px; font-weight: 700; }
 .header-avatar { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: white; background: #d8875e; font-size: 12px; }
+.header-avatar.emoji-avatar { color: #173b35; border: 1px solid rgba(31,45,43,.12); background: #fff; font-size: 19px; }
 .user-menu button { border: 0; color: #71827f; background: transparent; font-size: 20px; }
 .household-chip { padding: 8px 14px; border: 1px solid #dfe7e2; border-radius: 20px; background: white; }
 .page-content { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 70px 0 80px; }
@@ -1063,6 +1064,11 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
 .activity-type-icon.created {
   background: #f1f0fa;
   color: #665f85;
+}
+
+.activity-type-icon.uncompleted {
+  background: #fff3df;
+  color: #8a6120;
 }
 
 .activity-history-copy {

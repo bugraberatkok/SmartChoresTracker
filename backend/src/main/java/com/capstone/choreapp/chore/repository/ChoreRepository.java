@@ -32,4 +32,18 @@ public interface ChoreRepository extends JpaRepository<Chore, Long> {
     void deleteAllByGroupId(
             @Param("groupId") Long groupId
     );
+
+    @Modifying
+    @Query(value = """
+        delete from chore_completion_dates
+        where chore_id in (select id from chores where group_id = :groupId)
+        """, nativeQuery = true)
+    void deleteCompletionDatesByGroupId(@Param("groupId") Long groupId);
+
+    @Modifying
+    @Query(value = """
+        delete from chore_recurrence_days
+        where chore_id in (select id from chores where group_id = :groupId)
+        """, nativeQuery = true)
+    void deleteRecurrenceDaysByGroupId(@Param("groupId") Long groupId);
 }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { HomeMark } from './LoginPage'
 import type { Household } from './types'
-import { deriveInitials } from './types'
+import { avatarEmoji, deriveInitials } from './types'
 import { createGroup, joinGroupByCode, fetchGroups, updateGroup, deleteGroup, ApiError, type AuthUser, type GroupResponse } from './api'
 
 type Props = {
@@ -107,13 +107,14 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
   }
 
   const userInitials = currentUser ? deriveInitials(currentUser.name) : '??'
+  const userAvatar = avatarEmoji(currentUser?.avatarKey)
   const userFirstName = currentUser?.name.split(' ')[0] ?? 'User'
 
   return (
     <main className="app-shell">
       <header className="app-header">
         <div className="brand"><span className="brand-mark"><HomeMark /></span><span>Smart Chores</span></div>
-        <div className="user-menu"><span className="header-avatar">{userInitials}</span><span>{userFirstName}</span><button type="button" onClick={onLogout} aria-label="Sign out">↗</button></div>
+        <div className="user-menu"><span className={`header-avatar ${userAvatar ? 'emoji-avatar' : ''}`}>{userAvatar ?? userInitials}</span><span>{userFirstName}</span><button type="button" onClick={onLogout} aria-label="Sign out">↗</button></div>
       </header>
 
       <section className="page-content">

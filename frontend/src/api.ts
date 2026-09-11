@@ -290,6 +290,13 @@ export function completeChore(groupId: number, choreId: number, date?: string) {
   })
 }
 
+export function uncompleteChore(groupId: number, choreId: number, date?: string) {
+  const query = date ? `?date=${encodeURIComponent(date)}` : ''
+  return request<ChoreResponse>(`/groups/${groupId}/chores/${choreId}/uncomplete${query}`, {
+    method: 'PATCH',
+  })
+}
+
 
 export function updateChore(
   groupId: number,
@@ -432,7 +439,7 @@ export function deactivateReward(groupId: number, rewardId: number) {
   })
 }
 
-export type ActivityType = 'CHORE_CREATED' | 'CHORE_COMPLETED'
+export type ActivityType = 'CHORE_CREATED' | 'CHORE_COMPLETED' | 'CHORE_UNCOMPLETED'
 
 export interface ActivityResponse {
   id: number

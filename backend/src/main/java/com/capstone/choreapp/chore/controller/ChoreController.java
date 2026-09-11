@@ -113,4 +113,21 @@ public class ChoreController {
                 date
         );
     }
+
+    @PatchMapping("/{choreId}/uncomplete")
+    public ChoreResponse uncompleteChore(
+            @PathVariable Long groupId,
+            @PathVariable Long choreId,
+            @RequestParam(required = false) LocalDate date,
+            Authentication authentication
+    ) {
+        Long requesterId = Long.valueOf(authentication.getName());
+
+        return choreService.uncompleteChore(
+                groupId,
+                choreId,
+                requesterId,
+                date
+        );
+    }
 }

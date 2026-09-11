@@ -11,6 +11,7 @@ import {
   fetchGroupChores,
   createChore,
   completeChore,
+  uncompleteChore,
   updateChore,
   deleteChore,
   fetchLeaderboard,
@@ -301,15 +302,15 @@ export default function MemberDashboard({
   ).join(' ')
 
   const toggleChore = async (chore: Chore) => {
-    if (!chore || chore.completed) return
-
     try {
-      const updated = await completeChore(household.id, chore.backendId, chore.date)
+      const updated = chore.completed
+        ? await uncompleteChore(household.id, chore.backendId, chore.date)
+        : await completeChore(household.id, chore.backendId, chore.date)
       setGroupChores((current) => current.map((item) => item.id === updated.id ? updated : item))
       setChores((current) =>
         current.map((item) => item.id === chore.id && item.date === chore.date ? toUIChore(updated, chore.date) : item),
       )
-      setPoints((value) => value + (updated.points ?? 0))
+      setPoints((value) => Math.max(0, value + (chore.completed ? -1 : 1) * (updated.points ?? 0)))
 
       // Chore completion already succeeded; refresh gamification data separately
       void Promise.all([
@@ -333,7 +334,7 @@ export default function MemberDashboard({
           // Do not report the chore completion as failed if only a refresh fails.
         })
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Failed to complete chore')
+      alert(err instanceof ApiError ? err.message : 'Failed to update chore')
     }
   }
 
@@ -569,7 +570,7 @@ export default function MemberDashboard({
           <div className="chore-list">
             {loadingChores && <p style={{ textAlign: 'center', opacity: 0.6, padding: '1rem' }}>Loading chores...</p>}
             {!loadingChores && dailyChores.length ? dailyChores.map((chore) => <article className={`chore-card ${chore.completed ? 'completed' : ''}`} key={`${chore.id}-${chore.date}`}>
-              <button className="chore-check" type="button" onClick={() => toggleChore(chore)} disabled={chore.completed} aria-label={chore.completed ? `${chore.title} completed` : `Complete ${chore.title}`}>{chore.completed && '✓'}</button>
+              <button className="chore-check" type="button" onClick={() => toggleChore(chore)} aria-label={chore.completed ? `Mark ${chore.title} incomplete` : `Complete ${chore.title}`}>{chore.completed && '✓'}</button>
               <span className="chore-emoji">{chore.icon}</span>
               <div className="chore-info"><span>◷ {chore.time}</span><strong>{chore.title}</strong>{chore.description && <small>{chore.description}</small>}</div>
               {household.isAdmin && <div style={{ display: 'flex', gap: '0.35rem' }}><button type="button" onClick={() => { setActionError(''); setEditingRecurring(chore.recurring); setEditingChore(chore) }} title="Edit chore">✎</button><button type="button" onClick={() => { setActionError(''); setDeletingChore(chore) }} title="Delete chore">🗑</button></div>}

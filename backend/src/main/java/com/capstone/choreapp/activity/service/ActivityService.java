@@ -49,6 +49,20 @@ public class ActivityService {
         );
     }
 
+    @Transactional
+    public void recordChoreUncompleted(
+            Group group,
+            User actor,
+            Chore chore
+    ) {
+        saveEvent(
+                group,
+                actor,
+                chore,
+                ActivityType.CHORE_UNCOMPLETED
+        );
+    }
+
     @Transactional(readOnly = true)
     public List<ActivityResponse> getActivities(
             Long groupId,
