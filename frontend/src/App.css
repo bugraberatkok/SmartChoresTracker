@@ -474,6 +474,17 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
   font-size: 1.05rem;
 }
 
+.member-avatar.emoji-avatar,
+.dashboard-avatar.emoji-avatar {
+  color: #173b35;
+  background: #fff;
+  border-color: rgba(31, 45, 43, 0.12);
+}
+
+.member-avatar.emoji-avatar {
+  border: 1px solid rgba(31, 45, 43, 0.12);
+}
+
 @media (max-width: 720px) {
   .member-row-actions {
     flex: none;
@@ -684,6 +695,7 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
   min-width: 0;
   height: 56px;
   min-height: 56px;
+  margin: 0;
   padding: 0 1rem;
   border-radius: 13px;
   white-space: nowrap;

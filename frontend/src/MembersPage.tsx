@@ -537,6 +537,7 @@ export default function MembersPage({
 
             const isUpdatingRole = memberRoleUpdatingId === member.id
             const displayTitle = member.displayTitle?.trim() || 'Member'
+            const selectedAvatar = avatarEmoji(member.avatarKey)
 
             return (
               <article
@@ -552,10 +553,10 @@ export default function MembersPage({
                   disabled={!canOpen}
                 >
                   <span
-                    className="member-avatar"
-                    style={{ background: member.color }}
+                    className={`member-avatar ${selectedAvatar ? 'emoji-avatar' : ''}`}
+                    style={{ background: selectedAvatar ? '#fff' : member.color }}
                   >
-                    {avatarEmoji(member.avatarKey) ?? member.initials}
+                    {selectedAvatar ?? member.initials}
                   </span>
 
                   <span className="member-info">

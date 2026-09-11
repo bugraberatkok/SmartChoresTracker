@@ -529,7 +529,7 @@ export default function MemberDashboard({
       <section className="dashboard-content">
         <button className="back-button" type="button" onClick={onBack}>← All members</button>
         <div className="member-hero">
-          <div className="dashboard-person"><span className="dashboard-avatar" style={{ background: member.color }}>{avatarEmoji(member.avatarKey) ?? member.initials}</span><div><span className="eyebrow">Daily dashboard</span><h1>{member.name}</h1><p>{completedCount} of {dailyChores.length} chores complete today</p></div></div>
+          <div className="dashboard-person"><span className={`dashboard-avatar ${avatarEmoji(member.avatarKey) ? 'emoji-avatar' : ''}`} style={{ background: avatarEmoji(member.avatarKey) ? '#fff' : member.color }}>{avatarEmoji(member.avatarKey) ?? member.initials}</span><div><span className="eyebrow">Daily dashboard</span><h1>{member.name}</h1><p>{completedCount} of {dailyChores.length} chores complete today</p></div></div>
           <div className="dashboard-stats">
             <div className="dashboard-score">
               <span>★</span>
