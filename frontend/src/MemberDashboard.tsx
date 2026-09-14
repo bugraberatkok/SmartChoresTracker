@@ -308,7 +308,7 @@ export default function MemberDashboard({
       const [rewardData, balanceData, redemptionData] = await Promise.all([
         fetchRewards(item.id),
         fetchRewardBalance(item.id),
-        fetchRewardRedemptions(item.id),
+        fetchRewardRedemptions(item.id).catch(() => []),
       ])
       return { item, rewardData, balanceData, redemptionData }
     }))
@@ -347,6 +347,45 @@ export default function MemberDashboard({
       cancelled = true
     }
   }, [dataHouseholds, member.id, currentUserId])
+
+  useEffect(() => {
+    if (tab !== 'rewards') return
+
+    let cancelled = false
+
+    Promise.all(dataHouseholds.map(async (item) => ({
+      householdId: item.id,
+      balance: await fetchRewardBalance(item.id),
+    })))
+      .then((balances) => {
+        if (cancelled) return
+
+        const byHousehold = new Map(
+          balances.map((item) => [item.householdId, item.balance]),
+        )
+
+        setRewardBalance(balances.reduce<RewardBalanceResponse>((total, item) => ({
+          earnedPoints: total.earnedPoints + item.balance.earnedPoints,
+          spentPoints: total.spentPoints + item.balance.spentPoints,
+          availablePoints: total.availablePoints + item.balance.availablePoints,
+        }), { earnedPoints: 0, spentPoints: 0, availablePoints: 0 }))
+
+        setRewards((current) => current.map((reward) => ({
+          ...reward,
+          householdBalance: byHousehold.get(reward.householdId)?.availablePoints
+            ?? reward.householdBalance,
+        })))
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setRewardError(err instanceof ApiError ? err.message : 'Failed to refresh reward balance')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [tab, dataHouseholds])
 
   const graphData = useMemo(() => {
     const counts = new Map(
