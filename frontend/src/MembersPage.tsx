@@ -155,7 +155,6 @@ export default function MembersPage({
 
   useEffect(() => {
     if (!household.isAdmin) {
-      setJoinRequests([])
       return
     }
 

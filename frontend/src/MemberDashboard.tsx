@@ -202,7 +202,6 @@ export default function MemberDashboard({
     let cancelled = false
 
     if (personalProfileView) {
-      setLeaderboard([])
       return
     }
 
@@ -331,7 +330,7 @@ export default function MemberDashboard({
     return () => {
       cancelled = true
     }
-  }, [dataHouseholds, member.id])
+  }, [dataHouseholds, member.id, currentUserId])
 
   const graphData = useMemo(() => {
     const counts = new Map(
