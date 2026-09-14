@@ -75,6 +75,17 @@ public class GroupMembershipService {
         return membership;
     }
 
+    @Transactional
+    public int adjustAvailablePoints(Long groupId, Long userId, int adjustment) {
+        GroupMembership membership = requireMember(groupId, userId);
+        int currentBalance = membership.getAvailablePoints() == null
+                ? 0
+                : membership.getAvailablePoints();
+        int updatedBalance = Math.max(0, currentBalance + adjustment);
+        membership.setAvailablePoints(updatedBalance);
+        return updatedBalance;
+    }
+
     @Transactional(readOnly = true)
     public List<GroupMemberResponse> getGroupMembers(
             Long groupId,

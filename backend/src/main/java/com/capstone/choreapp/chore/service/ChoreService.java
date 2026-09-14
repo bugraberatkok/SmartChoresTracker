@@ -344,10 +344,16 @@ public class ChoreService {
                     chore
             );
 
+            creditAssignedUser(chore);
+
             return choreMapper.toResponse(chore);
         }
 
-        // Tekrar request gelirse sorun çıkarmasın
+        // Repeated completion requests must not award the points twice.
+        if (chore.getStatus() == ChoreStatus.COMPLETED) {
+            return choreMapper.toResponse(chore);
+        }
+
         chore.setStatus(ChoreStatus.COMPLETED);
         chore.setCompletedAt(Instant.now());
 
@@ -363,6 +369,8 @@ public class ChoreService {
                 actor,
                 chore
         );
+
+        creditAssignedUser(chore);
 
         return choreMapper.toResponse(chore);
 
@@ -412,8 +420,29 @@ public class ChoreService {
                             "Authenticated user was not found"
                     ));
             activityService.recordChoreUncompleted(chore.getGroup(), actor, chore);
+            debitAssignedUser(chore);
         }
 
         return choreMapper.toResponse(chore);
+    }
+
+    private void creditAssignedUser(Chore chore) {
+        if (chore.getAssignedUser() != null) {
+            groupMembershipService.adjustAvailablePoints(
+                    chore.getGroup().getId(),
+                    chore.getAssignedUser().getId(),
+                    chore.getPoints() == null ? 0 : chore.getPoints()
+            );
+        }
+    }
+
+    private void debitAssignedUser(Chore chore) {
+        if (chore.getAssignedUser() != null) {
+            groupMembershipService.adjustAvailablePoints(
+                    chore.getGroup().getId(),
+                    chore.getAssignedUser().getId(),
+                    -(chore.getPoints() == null ? 0 : chore.getPoints())
+            );
+        }
     }
 }

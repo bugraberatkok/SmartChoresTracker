@@ -57,6 +57,9 @@ public class GroupMembership {
     @Column(name = "display_title", length = 40)
     private String displayTitle;
 
+    @Column(name = "available_points", nullable = false)
+    private Integer availablePoints = 0;
+
     @CreationTimestamp
     @Column(name = "joined_at", nullable = false, updatable = false)
     private Instant joinedAt;

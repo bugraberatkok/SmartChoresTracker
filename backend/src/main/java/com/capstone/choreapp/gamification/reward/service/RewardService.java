@@ -15,6 +15,7 @@ import com.capstone.choreapp.gamification.reward.repository.RewardRepository;
 import com.capstone.choreapp.group.entity.Group;
 import com.capstone.choreapp.group.exception.GroupNotFoundException;
 import com.capstone.choreapp.group.membership.service.GroupMembershipService;
+import com.capstone.choreapp.group.membership.entity.GroupMembership;
 import com.capstone.choreapp.group.repository.GroupRepository;
 import com.capstone.choreapp.user.entity.User;
 import com.capstone.choreapp.user.exception.UserNotFoundException;
@@ -88,7 +89,7 @@ public class RewardService {
             Long groupId,
             Long requesterId
     ) {
-        groupMembershipService.requireMember(groupId, requesterId);
+        GroupMembership membership = groupMembershipService.requireMember(groupId, requesterId);
 
         int earnedPoints = calculateEarnedPoints(
                 groupId,
@@ -105,7 +106,9 @@ public class RewardService {
         return new RewardBalanceResponse(
                 earnedPoints,
                 spentPoints,
-                Math.max(0, earnedPoints - spentPoints)
+                membership.getAvailablePoints() == null
+                        ? 0
+                        : membership.getAvailablePoints()
         );
     }
 
@@ -134,7 +137,7 @@ public class RewardService {
             Long requesterId,
             Long rewardId
     ) {
-        groupMembershipService.requireMember(groupId, requesterId);
+        GroupMembership membership = groupMembershipService.requireMember(groupId, requesterId);
 
         Reward reward = rewardRepository
                 .findByIdAndGroupId(rewardId, groupId)
@@ -157,19 +160,9 @@ public class RewardService {
                         )
                 );
 
-        int earnedPoints = calculateEarnedPoints(
-                groupId,
-                requesterId
-        );
-
-        int spentPoints = Math.toIntExact(
-                rewardRedemptionRepository.sumSpentPoints(
-                        groupId,
-                        requesterId
-                )
-        );
-
-        int availablePoints = earnedPoints - spentPoints;
+        int availablePoints = membership.getAvailablePoints() == null
+                ? 0
+                : membership.getAvailablePoints();
 
         if (availablePoints < reward.getCost()) {
             throw new IllegalArgumentException(
@@ -184,6 +177,8 @@ public class RewardService {
 
         RewardRedemption saved =
                 rewardRedemptionRepository.save(redemption);
+
+        membership.setAvailablePoints(availablePoints - reward.getCost());
 
         return new RewardRedemptionResponse(
                 saved.getId(),
