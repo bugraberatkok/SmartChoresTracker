@@ -183,8 +183,14 @@ public class GroupMembershipService {
 
         GroupMembership membership = groupMembershipMapper.toEntity(
                 request.getUser(), request.getGroup(), GroupRole.MEMBER);
-        GroupMembership savedMembership = groupMembershipRepository.save(membership);
+
+        // Flush both operations here instead of deferring them until transaction
+        // commit. This guarantees that the response contains the persisted member
+        // and prevents a pending request from remaining after approval.
         groupJoinRequestRepository.delete(request);
+        groupJoinRequestRepository.flush();
+        GroupMembership savedMembership = groupMembershipRepository.saveAndFlush(membership);
+
         return groupMembershipMapper.toResponse(savedMembership);
     }
 

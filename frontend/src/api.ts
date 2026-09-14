@@ -56,12 +56,30 @@ async function request<T>(
   // 204 No Content → no body to parse
   if (res.status === 204) return undefined as unknown as T
 
-  const body = await res.json()
+  const responseText = await res.text()
+  let body: Record<string, unknown> = {}
+
+  if (responseText) {
+    try {
+      body = JSON.parse(responseText) as Record<string, unknown>
+    } catch {
+      if (!res.ok) {
+        throw new ApiError(
+          responseText || `Request failed (${res.status})`,
+          res.status,
+          responseText,
+        )
+      }
+      throw new ApiError('The server returned an invalid response', res.status, responseText)
+    }
+  }
 
   if (!res.ok) {
     // Spring Boot validation errors come as { message, errors } or { error }
     const message =
-      body?.message ?? body?.error ?? `Request failed (${res.status})`
+      (typeof body.message === 'string' ? body.message : undefined)
+      ?? (typeof body.error === 'string' ? body.error : undefined)
+      ?? `Request failed (${res.status})`
     throw new ApiError(message, res.status, body)
   }
 
