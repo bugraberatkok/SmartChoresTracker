@@ -85,7 +85,7 @@ public class GroupMembershipController {
         );
     }
 
-    @DeleteMapping("/me")
+    @DeleteMapping("/leave")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void leaveGroup(@PathVariable Long groupId, Authentication authentication) {
         groupMembershipService.leaveGroup(groupId, Long.valueOf(authentication.getName()));

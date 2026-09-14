@@ -235,7 +235,7 @@ export function removeGroupMember(groupId: number, userId: number) {
 }
 
 export function leaveGroup(groupId: number) {
-  return request<void>(`/groups/${groupId}/members/me`, { method: 'DELETE' })
+  return request<void>(`/groups/${groupId}/members/leave`, { method: 'DELETE' })
 }
 
 export function updateOwnDisplayTitle(

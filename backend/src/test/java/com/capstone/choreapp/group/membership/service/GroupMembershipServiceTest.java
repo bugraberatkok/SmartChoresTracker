@@ -1,8 +1,11 @@
 package com.capstone.choreapp.group.membership.service;
 
+import com.capstone.choreapp.chore.repository.ChoreRepository;
 import com.capstone.choreapp.group.entity.Group;
 import com.capstone.choreapp.group.membership.dto.GroupJoinRequestResponse;
 import com.capstone.choreapp.group.membership.entity.GroupJoinRequest;
+import com.capstone.choreapp.group.membership.entity.GroupMembership;
+import com.capstone.choreapp.group.membership.entity.GroupRole;
 import com.capstone.choreapp.group.membership.mapper.GroupMembershipMapper;
 import com.capstone.choreapp.group.membership.repository.GroupJoinRequestRepository;
 import com.capstone.choreapp.group.membership.repository.GroupMembershipRepository;
@@ -28,6 +31,9 @@ class GroupMembershipServiceTest {
 
     @Mock
     private GroupJoinRequestRepository groupJoinRequestRepository;
+
+    @Mock
+    private ChoreRepository choreRepository;
 
     @Mock
     private GroupRepository groupRepository;
@@ -87,5 +93,19 @@ class GroupMembershipServiceTest {
                 .existsByUserIdAndGroupId(userId, groupId);
 
         verify(groupJoinRequestRepository).save(any(GroupJoinRequest.class));
+    }
+
+    @Test
+    void shouldAllowMemberToLeaveGroup() {
+        Long groupId = 10L;
+        Long userId = 20L;
+        GroupMembership membership = mock(GroupMembership.class);
+        when(membership.getRole()).thenReturn(GroupRole.MEMBER);
+        when(groupMembershipRepository.findByUserIdAndGroupId(userId, groupId))
+                .thenReturn(Optional.of(membership));
+
+        groupMembershipService.leaveGroup(groupId, userId);
+
+        verify(groupMembershipRepository).delete(membership);
     }
 }
