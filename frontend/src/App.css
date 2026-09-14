@@ -538,7 +538,8 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
   align-items: center;
   gap: 0;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
   border: 1px solid rgba(31, 45, 43, 0.12);
   border-radius: 18px;
   background: #fff;
@@ -546,6 +547,10 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
     border-color 140ms ease,
     box-shadow 140ms ease,
     transform 140ms ease;
+}
+
+.member-row:has(.member-action-menu) {
+  z-index: 30;
 }
 
 .member-row:hover {
@@ -927,6 +932,20 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
   color: #087769;
   font-weight: 700;
 }
+
+.redemption-history-panel { margin: 16px 0 24px; overflow: hidden; border: 1px solid #dfe7e2; border-radius: 16px; background: #fff; }
+.redemption-history-panel summary { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 17px 20px; color: #294a45; cursor: pointer; list-style: none; }
+.redemption-history-panel summary::-webkit-details-marker { display: none; }
+.redemption-history-panel summary > span:first-child { display: grid; gap: 3px; }
+.redemption-history-panel summary small { color: #87958f; font-weight: 400; }
+.redemption-history-panel summary > span:last-child { color: #087769; font-size: 12px; font-weight: 700; }
+.redemption-history-list { border-top: 1px solid #edf1ee; }
+.redemption-history-list > p { margin: 0; padding: 20px; color: #87958f; text-align: center; }
+.redemption-history-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 13px; padding: 14px 20px; border-bottom: 1px solid #edf1ee; }
+.redemption-history-row:last-child { border-bottom: 0; }
+.redemption-history-row > div { display: grid; gap: 3px; color: #294a45; }
+.redemption-history-row small { color: #87958f; }
+.redemption-history-row > b { color: #b4584f; }
 
 .reward-card p {
   flex: 1;

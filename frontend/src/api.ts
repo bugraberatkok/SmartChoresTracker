@@ -431,6 +431,14 @@ export interface RewardRedemptionResponse {
   redeemedAt: string
 }
 
+export interface RewardRedemptionHistoryResponse {
+  redemptionId: number
+  rewardId: number
+  rewardName: string
+  cost: number
+  redeemedAt: string
+}
+
 export interface ProgressDayResponse {
   date: string
   day: string
@@ -464,6 +472,10 @@ export function fetchRewards(groupId: number) {
 
 export function fetchRewardBalance(groupId: number) {
   return request<RewardBalanceResponse>(`/groups/${groupId}/rewards/balance`)
+}
+
+export function fetchRewardRedemptions(groupId: number) {
+  return request<RewardRedemptionHistoryResponse[]>(`/groups/${groupId}/rewards/redemptions`)
 }
 
 export function createReward(

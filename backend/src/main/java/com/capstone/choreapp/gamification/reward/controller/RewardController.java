@@ -4,6 +4,7 @@ import com.capstone.choreapp.gamification.reward.dto.CreateRewardRequest;
 import com.capstone.choreapp.gamification.reward.dto.RewardBalanceResponse;
 import com.capstone.choreapp.gamification.reward.dto.RewardRedemptionResponse;
 import com.capstone.choreapp.gamification.reward.dto.RewardResponse;
+import com.capstone.choreapp.gamification.reward.dto.RewardRedemptionHistoryResponse;
 import com.capstone.choreapp.gamification.reward.service.RewardService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,17 @@ public class RewardController {
         return rewardService.getBalance(
                 groupId,
                 userId
+        );
+    }
+
+    @GetMapping("/redemptions")
+    public List<RewardRedemptionHistoryResponse> getRedemptionHistory(
+            @PathVariable Long groupId,
+            Authentication authentication
+    ) {
+        return rewardService.getRedemptionHistory(
+                groupId,
+                Long.valueOf(authentication.getName())
         );
     }
 

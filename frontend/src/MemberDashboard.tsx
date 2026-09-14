@@ -26,11 +26,13 @@ import {
   type StreakResponse,
   fetchRewards,
   fetchRewardBalance,
+  fetchRewardRedemptions,
   createReward,
   redeemReward,
   deactivateReward,
   type RewardResponse,
   type RewardBalanceResponse,
+  type RewardRedemptionHistoryResponse,
 } from './api'
 
 type Tab = 'chores' | 'trophies' | 'rewards' | 'progress'
@@ -120,6 +122,11 @@ type DashboardReward = RewardResponse & {
   canManage: boolean
 }
 
+type DashboardRedemption = RewardRedemptionHistoryResponse & {
+  householdId: number
+  householdName: string
+}
+
 type Props = {
   household: Household
   member: Member
@@ -158,6 +165,7 @@ export default function MemberDashboard({
   const [progressData, setProgressData] = useState<ProgressDayResponse[]>([])
   const [rewards, setRewards] = useState<DashboardReward[]>([])
   const [rewardBalance, setRewardBalance] = useState<RewardBalanceResponse | null>(null)
+  const [redemptionHistory, setRedemptionHistory] = useState<DashboardRedemption[]>([])
   const [rewardLoading, setRewardLoading] = useState(true)
   const [rewardError, setRewardError] = useState('')
   const [showRewardForm, setShowRewardForm] = useState(false)
@@ -297,11 +305,12 @@ export default function MemberDashboard({
 
 
     Promise.all(dataHouseholds.map(async (item) => {
-      const [rewardData, balanceData] = await Promise.all([
+      const [rewardData, balanceData, redemptionData] = await Promise.all([
         fetchRewards(item.id),
         fetchRewardBalance(item.id),
+        fetchRewardRedemptions(item.id),
       ])
-      return { item, rewardData, balanceData }
+      return { item, rewardData, balanceData, redemptionData }
     }))
       .then((responses) => {
         if (cancelled) return
@@ -317,6 +326,13 @@ export default function MemberDashboard({
           spentPoints: total.spentPoints + balanceData.spentPoints,
           availablePoints: total.availablePoints + balanceData.availablePoints,
         }), { earnedPoints: 0, spentPoints: 0, availablePoints: 0 }))
+        setRedemptionHistory(responses
+          .flatMap(({ item, redemptionData }) => redemptionData.map((redemption) => ({
+            ...redemption,
+            householdId: item.id,
+            householdName: item.name,
+          })))
+          .sort((a, b) => new Date(b.redeemedAt).getTime() - new Date(a.redeemedAt).getTime()))
       })
       .catch((err) => {
         if (!cancelled) {
@@ -577,6 +593,8 @@ export default function MemberDashboard({
   }
 
   const handleRedeemReward = async (reward: DashboardReward) => {
+    if (!window.confirm(`Redeem “${reward.name}” for ${reward.cost} points? These points cannot be recovered.`)) return
+
     setRewardError('')
     setRedeemingRewardId(reward.id)
 
@@ -593,6 +611,15 @@ export default function MemberDashboard({
       setRewards((current) => current.map((item) => item.id === reward.id && item.householdId === reward.householdId
         ? { ...item, householdBalance: result.remainingPoints }
         : item))
+      setRedemptionHistory((current) => [{
+        redemptionId: result.redemptionId,
+        rewardId: result.rewardId,
+        rewardName: result.rewardName,
+        cost: result.cost,
+        redeemedAt: result.redeemedAt,
+        householdId: reward.householdId,
+        householdName: reward.householdName,
+      }, ...current])
     } catch (err) {
       setRewardError(err instanceof ApiError ? err.message : 'Failed to redeem reward')
     } finally {
@@ -725,6 +752,27 @@ export default function MemberDashboard({
                 <span>Spent <b>{rewardBalance?.spentPoints ?? 0}</b></span>
               </div>
             </div>
+
+            <details className="redemption-history-panel">
+              <summary>
+                <span><strong>Used rewards</strong><small>See your redemption history</small></span>
+                <span>{redemptionHistory.length} {redemptionHistory.length === 1 ? 'reward' : 'rewards'} ▾</span>
+              </summary>
+              <div className="redemption-history-list">
+                {redemptionHistory.length === 0 ? (
+                  <p>You have not used any rewards yet.</p>
+                ) : redemptionHistory.map((redemption) => (
+                  <div className="redemption-history-row" key={`${redemption.householdId}-${redemption.redemptionId}`}>
+                    <span className="reward-gift">🎁</span>
+                    <div>
+                      <strong>{redemption.rewardName}</strong>
+                      <small>{personalProfileView ? `${redemption.householdName} · ` : ''}{new Date(redemption.redeemedAt).toLocaleDateString()}</small>
+                    </div>
+                    <b>−{redemption.cost} pts</b>
+                  </div>
+                ))}
+              </div>
+            </details>
 
             {rewardError && (
               <p className="form-message error-message" role="alert">

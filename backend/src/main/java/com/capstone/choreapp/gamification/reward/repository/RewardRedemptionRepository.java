@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface RewardRedemptionRepository
         extends JpaRepository<RewardRedemption, Long> {
 
@@ -16,6 +18,17 @@ public interface RewardRedemptionRepository
               and r.user.id = :userId
             """)
     Long sumSpentPoints(
+            @Param("groupId") Long groupId,
+            @Param("userId") Long userId
+    );
+
+    @Query("""
+            select r from RewardRedemption r
+            where r.reward.group.id = :groupId
+              and r.user.id = :userId
+            order by r.redeemedAt desc
+            """)
+    List<RewardRedemption> findHistory(
             @Param("groupId") Long groupId,
             @Param("userId") Long userId
     );

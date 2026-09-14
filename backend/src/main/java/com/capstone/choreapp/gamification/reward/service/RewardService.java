@@ -6,6 +6,7 @@ import com.capstone.choreapp.chore.repository.ChoreRepository;
 import com.capstone.choreapp.gamification.reward.dto.CreateRewardRequest;
 import com.capstone.choreapp.gamification.reward.dto.RewardBalanceResponse;
 import com.capstone.choreapp.gamification.reward.dto.RewardRedemptionResponse;
+import com.capstone.choreapp.gamification.reward.dto.RewardRedemptionHistoryResponse;
 import com.capstone.choreapp.gamification.reward.dto.RewardResponse;
 import com.capstone.choreapp.gamification.reward.entity.Reward;
 import com.capstone.choreapp.gamification.reward.entity.RewardRedemption;
@@ -106,6 +107,25 @@ public class RewardService {
                 spentPoints,
                 Math.max(0, earnedPoints - spentPoints)
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<RewardRedemptionHistoryResponse> getRedemptionHistory(
+            Long groupId,
+            Long requesterId
+    ) {
+        groupMembershipService.requireMember(groupId, requesterId);
+
+        return rewardRedemptionRepository.findHistory(groupId, requesterId)
+                .stream()
+                .map(redemption -> new RewardRedemptionHistoryResponse(
+                        redemption.getId(),
+                        redemption.getReward().getId(),
+                        redemption.getReward().getName(),
+                        redemption.getCostSnapshot(),
+                        redemption.getRedeemedAt()
+                ))
+                .toList();
     }
 
     @Transactional
