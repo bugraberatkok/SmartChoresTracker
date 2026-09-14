@@ -4,6 +4,7 @@ import com.capstone.choreapp.group.membership.dto.AddGroupMemberRequest;
 import com.capstone.choreapp.group.membership.dto.GroupMemberResponse;
 import com.capstone.choreapp.group.membership.dto.UpdateDisplayTitleRequest;
 import com.capstone.choreapp.group.membership.dto.UpdateGroupRoleRequest;
+import com.capstone.choreapp.group.membership.dto.GroupJoinRequestResponse;
 import com.capstone.choreapp.group.membership.service.GroupMembershipService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,24 @@ import java.util.List;
 public class GroupMembershipController {
 
     private final GroupMembershipService groupMembershipService;
+
+    @GetMapping("/join-requests")
+    public List<GroupJoinRequestResponse> getJoinRequests(@PathVariable Long groupId, Authentication authentication) {
+        return groupMembershipService.getJoinRequests(groupId, Long.valueOf(authentication.getName()));
+    }
+
+    @PostMapping("/join-requests/{requestId}/approve")
+    public GroupMemberResponse approveJoinRequest(@PathVariable Long groupId, @PathVariable Long requestId,
+                                                   Authentication authentication) {
+        return groupMembershipService.approveJoinRequest(groupId, Long.valueOf(authentication.getName()), requestId);
+    }
+
+    @DeleteMapping("/join-requests/{requestId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void rejectJoinRequest(@PathVariable Long groupId, @PathVariable Long requestId,
+                                  Authentication authentication) {
+        groupMembershipService.rejectJoinRequest(groupId, Long.valueOf(authentication.getName()), requestId);
+    }
 
     @GetMapping
     public List<GroupMemberResponse> getGroupMembers(
@@ -64,6 +83,12 @@ public class GroupMembershipController {
                 requesterId,
                 userId
         );
+    }
+
+    @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void leaveGroup(@PathVariable Long groupId, Authentication authentication) {
+        groupMembershipService.leaveGroup(groupId, Long.valueOf(authentication.getName()));
     }
 
     @PatchMapping("/me/display-title")

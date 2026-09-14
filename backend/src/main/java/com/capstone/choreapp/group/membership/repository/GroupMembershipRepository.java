@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.capstone.choreapp.group.membership.entity.GroupMembership;
+import com.capstone.choreapp.group.membership.entity.GroupRole;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,6 +24,8 @@ public interface GroupMembershipRepository
     List<GroupMembership> findAllByGroupId(Long groupId);
 
     List<GroupMembership> findAllByUserId(Long userId);
+
+    Optional<GroupMembership> findFirstByGroupIdAndRoleOrderByJoinedAtAsc(Long groupId, GroupRole role);
 
     @Modifying
     @Query("""

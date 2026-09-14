@@ -3,6 +3,7 @@ package com.capstone.choreapp.group.controller;
 import com.capstone.choreapp.group.dto.CreateGroupRequest;
 import com.capstone.choreapp.group.dto.GroupResponse;
 import com.capstone.choreapp.group.membership.dto.GroupMemberResponse;
+import com.capstone.choreapp.group.membership.dto.GroupJoinRequestResponse;
 import com.capstone.choreapp.group.membership.dto.JoinGroupByCodeRequest;
 import com.capstone.choreapp.group.membership.service.GroupMembershipService;
 import com.capstone.choreapp.group.service.GroupService;
@@ -77,7 +78,7 @@ public class GroupController {
 
     @PostMapping("/join-by-code")
     @ResponseStatus(HttpStatus.CREATED)
-    public GroupMemberResponse joinByInviteCode(
+    public GroupJoinRequestResponse joinByInviteCode(
             @Valid @RequestBody JoinGroupByCodeRequest request,
             Authentication authentication
     ) {
@@ -108,5 +109,4 @@ public class GroupController {
 
 
 }
-
 

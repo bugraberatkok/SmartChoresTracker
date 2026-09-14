@@ -86,7 +86,8 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
 .user-menu .header-profile-button:hover:not(:disabled) { background: #eef5f1; }
 .user-menu .header-profile-button:focus-visible { outline: 3px solid rgba(20,145,127,.24); outline-offset: 2px; }
 .user-menu .header-profile-button:disabled { cursor: default; opacity: .65; }
-.household-chip { padding: 8px 14px; border: 1px solid #dfe7e2; border-radius: 20px; background: white; }
+.household-chip { padding: 8px 14px; border: 1px solid #dfe7e2; border-radius: 20px; background: white; cursor: pointer; font: inherit; }
+.household-chip:hover { border-color: #9dcac1; background: #f4faf7; }
 .page-content { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 70px 0 80px; }
 .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; margin-bottom: 42px; }
 .page-heading h1 { margin: 10px 0 8px; color: #173b35; font: 800 clamp(35px, 4vw, 52px)/1.1 'Manrope', sans-serif; letter-spacing: -2.2px; }
@@ -104,6 +105,7 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
 .household-card-actions button { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 1px solid #d8e1dc; border-radius: 9px; color: #49625d; background: #fff; font-size: 17px; }
 .household-card-actions button:hover { color: #087769; border-color: #8fc3b8; background: #eef7f3; }
 .household-card-actions button:last-child:hover { color: #a6423a; border-color: #dda7a2; background: #fff0ed; }
+.household-card-actions .leave-household-card-button { width: auto; padding: 0 10px; color: #a6423a; font-size: 12px; font-weight: 700; }
 .household-emoji-picker { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
 .household-emoji-picker label { margin: 0; }
 .household-emoji-picker input { position: absolute; opacity: 0; pointer-events: none; }
@@ -318,6 +320,17 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
 .member-card-locked .member-card-cta {
   color: rgba(31, 45, 43, 0.48);
 }
+
+.role-tag { margin-left: 7px; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.owner-role-tag { color: #8a5a00; background: #fff0c7; }
+.admin-role-tag { color: #087769; background: #dff3ec; }
+.member-action-menu-wrap { position: relative; }
+.member-more-button { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 1px solid #d8e1dc; border-radius: 10px; color: #49625d; background: #fff; cursor: pointer; font-size: 24px; line-height: 1; }
+.member-action-menu { position: absolute; z-index: 20; top: calc(100% + 6px); right: 0; display: grid; min-width: 170px; padding: 6px; border: 1px solid #dfe7e2; border-radius: 12px; background: #fff; box-shadow: 0 14px 35px rgba(25,65,56,.16); }
+.member-action-menu button { padding: 10px 12px; border: 0; border-radius: 8px; color: #294a45; background: transparent; cursor: pointer; text-align: left; font-weight: 700; }
+.member-action-menu button:hover { background: #eef7f3; }
+.member-action-menu button.danger { color: #a6423a; }
+.member-action-menu button.danger:hover { background: #fff0ed; }
 
 .member-row-actions {
   display: flex;
@@ -908,6 +921,13 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
   color: #394133;
 }
 
+.reward-household {
+  display: inline-block;
+  margin-bottom: 0.45rem;
+  color: #087769;
+  font-weight: 700;
+}
+
 .reward-card p {
   flex: 1;
   margin: 0;
@@ -985,6 +1005,17 @@ form > label, .password-label label { display: block; margin-bottom: 9px; color:
   background: rgba(255, 255, 255, 0.72);
   overflow: hidden;
 }
+
+.join-requests-panel { margin: 24px 0; padding: 22px; border: 1px solid #dfe7e2; border-radius: 18px; background: #fff; }
+.join-requests-heading { display: flex; align-items: center; justify-content: space-between; }
+.join-requests-heading h2 { margin: 3px 0 0; color: #173b35; font-size: 22px; }
+.join-request-count { display: grid; place-items: center; min-width: 30px; height: 30px; border-radius: 50%; color: #fff; background: #087769; font-weight: 800; }
+.join-requests-empty { margin: 16px 0 0; color: #87958f; }
+.join-request-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #edf1ee; }
+.join-request-row > div:first-child { display: grid; gap: 3px; color: #294a45; }
+.join-request-row small { color: #87958f; }
+.join-request-row > div:last-child { display: flex; gap: 8px; }
+.join-request-row .submit-button { width: auto; min-height: 40px; margin: 0; padding: 8px 18px; }
 
 .activity-history-toggle {
   width: 100%;

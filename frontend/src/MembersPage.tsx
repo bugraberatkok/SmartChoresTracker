@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { HomeMark } from './LoginPage'
 import type { Household, Member } from './types'
-import { AVATAR_EMOJIS, avatarEmoji, deriveInitials } from './types'
+import { AVATAR_EMOJIS, avatarEmoji, deriveColor, deriveInitials } from './types'
 import {
   ApiError,
   getOrCreateInviteCode,
   removeGroupMember,
+  leaveGroup,
   updateMemberRole,
   updateOwnDisplayTitle,
   updateCurrentUser,
@@ -13,6 +14,10 @@ import {
   type AuthUser,
   fetchActivities,
   type ActivityResponse,
+  fetchGroupJoinRequests,
+  approveGroupJoinRequest,
+  rejectGroupJoinRequest,
+  type GroupJoinRequestResponse,
 } from './api'
 
 type Props = {
@@ -21,6 +26,8 @@ type Props = {
   onHome: () => void
   onBack: () => void
   onMemberRemoved: (userId: number) => void
+  onMemberAdded: (member: Member) => void
+  onLeaveHousehold: (groupId: number) => void
   onCurrentUserUpdated: (user: AuthUser) => void
   onMemberUpdated: (member: Member) => void
   onSelectMember: (member: Member) => void
@@ -105,6 +112,8 @@ export default function MembersPage({
   onHome,
   onBack,
   onMemberRemoved,
+  onMemberAdded,
+  onLeaveHousehold,
   onCurrentUserUpdated,
   onMemberUpdated,
   onSelectMember,
@@ -134,11 +143,68 @@ export default function MembersPage({
   const [activityOpen, setActivityOpen] = useState(false)
   const [activityLoading, setActivityLoading] = useState(true)
   const [activityError, setActivityError] = useState('')
+  const [joinRequests, setJoinRequests] = useState<GroupJoinRequestResponse[]>([])
+  const [joinRequestError, setJoinRequestError] = useState('')
+  const [processingRequestId, setProcessingRequestId] = useState<number | null>(null)
+  const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null)
 
   const currentMember =
     household.members.find((member) => member.id === currentUserId) ?? null
 
   const currentUserIsOwner = household.ownerId === currentUserId
+
+  useEffect(() => {
+    if (!household.isAdmin) {
+      setJoinRequests([])
+      return
+    }
+
+    fetchGroupJoinRequests(household.id)
+      .then(setJoinRequests)
+      .catch((err) => setJoinRequestError(err instanceof ApiError ? err.message : 'Failed to load join requests'))
+  }, [household.id, household.isAdmin])
+
+  const handleApproveJoinRequest = async (request: GroupJoinRequestResponse) => {
+    setProcessingRequestId(request.requestId)
+    setJoinRequestError('')
+    try {
+      const response = await approveGroupJoinRequest(household.id, request.requestId)
+      onMemberAdded({
+        id: response.userId,
+        membershipId: response.membershipId,
+        name: response.name,
+        email: response.email,
+        initials: deriveInitials(response.name),
+        points: 0,
+        chores: 0,
+        color: deriveColor(response.userId),
+        isAdmin: false,
+        role: response.role,
+        displayTitle: response.displayTitle ?? 'Member',
+        avatarKey: response.avatarKey,
+        todayChores: 0,
+        todayCompleted: 0,
+      })
+      setJoinRequests((current) => current.filter((item) => item.requestId !== request.requestId))
+    } catch (err) {
+      setJoinRequestError(err instanceof ApiError ? err.message : 'Failed to approve request')
+    } finally {
+      setProcessingRequestId(null)
+    }
+  }
+
+  const handleRejectJoinRequest = async (request: GroupJoinRequestResponse) => {
+    setProcessingRequestId(request.requestId)
+    setJoinRequestError('')
+    try {
+      await rejectGroupJoinRequest(household.id, request.requestId)
+      setJoinRequests((current) => current.filter((item) => item.requestId !== request.requestId))
+    } catch (err) {
+      setJoinRequestError(err instanceof ApiError ? err.message : 'Failed to reject request')
+    } finally {
+      setProcessingRequestId(null)
+    }
+  }
 
   const roleOrder: Record<NonNullable<Member['role']>, number> = {
     OWNER: 0,
@@ -270,6 +336,16 @@ export default function MembersPage({
       window.alert(
         err instanceof ApiError ? err.message : 'Failed to remove member',
       )
+    }
+  }
+
+  const handleLeaveHousehold = async () => {
+    if (!window.confirm(`Leave ${household.name}?`)) return
+    try {
+      await leaveGroup(household.id)
+      onLeaveHousehold(household.id)
+    } catch (err) {
+      window.alert(err instanceof ApiError ? err.message : 'Failed to leave household')
     }
   }
 
@@ -432,13 +508,16 @@ export default function MembersPage({
           </div>
 
           <div className="members-heading-actions">
-            <button
-              className="invite-code-button"
-              type="button"
-              onClick={handleShowInviteCode}
-            >
-              🔑 Invite code
-            </button>
+            <button className="member-secondary-action" type="button" onClick={handleLeaveHousehold}>Leave household</button>
+            {household.isAdmin && (
+              <button
+                className="invite-code-button"
+                type="button"
+                onClick={handleShowInviteCode}
+              >
+                🔑 Invite code
+              </button>
+            )}
 
             <div className="members-count">
               <strong>{household.members.length}</strong>
@@ -446,6 +525,26 @@ export default function MembersPage({
             </div>
           </div>
         </div>
+
+        {household.isAdmin && (
+          <section className="join-requests-panel">
+            <div className="join-requests-heading">
+              <div><span className="eyebrow">Approval required</span><h2>Join requests</h2></div>
+              {joinRequests.length > 0 && <span className="join-request-count">{joinRequests.length}</span>}
+            </div>
+            {joinRequestError && <p className="form-message error-message" role="alert">{joinRequestError}</p>}
+            {!joinRequestError && joinRequests.length === 0 && <p className="join-requests-empty">No pending requests.</p>}
+            {joinRequests.map((request) => (
+              <div className="join-request-row" key={request.requestId}>
+                <div><strong>{request.name}</strong><small>{request.email}</small></div>
+                <div>
+                  <button className="member-secondary-action" type="button" disabled={processingRequestId === request.requestId} onClick={() => handleRejectJoinRequest(request)}>Reject</button>
+                  <button className="submit-button" type="button" disabled={processingRequestId === request.requestId} onClick={() => handleApproveJoinRequest(request)}>Approve</button>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
 
 
         <section className={`activity-history ${activityOpen ? 'open' : ''}`}>
@@ -573,6 +672,8 @@ export default function MembersPage({
                     <span>
                       <strong>{member.name}</strong>
                       {isCurrentUser && <span className="you-tag">You</span>}
+                      {member.role === 'OWNER' && <span className="role-tag owner-role-tag">Owner</span>}
+                      {member.role === 'ADMIN' && <span className="role-tag admin-role-tag">Admin</span>}
                     </span>
 
                     <small className="member-title-line">
@@ -620,17 +721,18 @@ export default function MembersPage({
                   )}
 
                   {canChangeManagement && (
-                    <button
-                      className="member-secondary-action"
-                      type="button"
-                      disabled={isUpdatingRole}
-                      onClick={() => setManagementMember(member)}
-                    >
-                      {isUpdatingRole ? 'Updating...' : 'Management'}
-                    </button>
+                    <div className="member-action-menu-wrap">
+                      <button className="member-more-button" type="button" aria-label={`Actions for ${member.name}`} onClick={() => setOpenActionMenuId((current) => current === member.id ? null : member.id)}>⋯</button>
+                      {openActionMenuId === member.id && (
+                        <div className="member-action-menu">
+                          <button type="button" disabled={isUpdatingRole} onClick={() => { setOpenActionMenuId(null); void handleToggleManagement(member) }}>{member.role === 'ADMIN' ? 'Remove admin role' : 'Make admin'}</button>
+                          <button className="danger" type="button" onClick={() => { setOpenActionMenuId(null); void handleRemoveMember(member) }}>Remove</button>
+                        </div>
+                      )}
+                    </div>
                   )}
 
-                  {canKick && (
+                  {!currentUserIsOwner && canKick && (
                     <button
                       className="member-danger-action"
                       type="button"

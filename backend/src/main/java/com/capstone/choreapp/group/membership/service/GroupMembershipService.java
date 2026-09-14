@@ -6,6 +6,9 @@ import com.capstone.choreapp.group.membership.entity.GroupRole;
 import com.capstone.choreapp.group.membership.exception.GroupAccessDeniedException;
 import com.capstone.choreapp.group.membership.exception.GroupMembershipNotFoundException;
 import com.capstone.choreapp.group.membership.repository.GroupMembershipRepository;
+import com.capstone.choreapp.group.membership.repository.GroupJoinRequestRepository;
+import com.capstone.choreapp.group.membership.entity.GroupJoinRequest;
+import com.capstone.choreapp.group.membership.dto.GroupJoinRequestResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +37,7 @@ public class GroupMembershipService {
     private final ChoreRepository choreRepository;
 
     private final GroupMembershipRepository groupMembershipRepository;
+    private final GroupJoinRequestRepository groupJoinRequestRepository;
 
     @Transactional(readOnly = true)
     public GroupMembership requireMember(Long groupId, Long userId) {
@@ -117,7 +121,7 @@ public class GroupMembershipService {
     }
 
     @Transactional
-    public GroupMemberResponse joinByInviteCode(
+    public GroupJoinRequestResponse joinByInviteCode(
             String inviteCode,
             Long userId
     ) {
@@ -143,17 +147,61 @@ public class GroupMembershipService {
             throw new UserAlreadyGroupMemberException();
         }
 
-        GroupMembership membership =
-                groupMembershipMapper.toEntity(
-                        user,
-                        group,
-                        GroupRole.MEMBER
-                );
+        if (groupJoinRequestRepository.existsByUserIdAndGroupId(userId, group.getId())) {
+            throw new IllegalArgumentException("Your request to join this household is already pending");
+        }
 
-        GroupMembership savedMembership =
-                groupMembershipRepository.save(membership);
+        GroupJoinRequest joinRequest = new GroupJoinRequest();
+        joinRequest.setUser(user);
+        joinRequest.setGroup(group);
 
+        return toJoinRequestResponse(groupJoinRequestRepository.save(joinRequest));
+    }
+
+    @Transactional(readOnly = true)
+    public List<GroupJoinRequestResponse> getJoinRequests(Long groupId, Long requesterId) {
+        requireManager(groupId, requesterId);
+        return groupJoinRequestRepository.findAllByGroupIdOrderByRequestedAtAsc(groupId)
+                .stream().map(this::toJoinRequestResponse).toList();
+    }
+
+    @Transactional
+    public GroupMemberResponse approveJoinRequest(Long groupId, Long requesterId, Long requestId) {
+        requireManager(groupId, requesterId);
+        GroupJoinRequest request = requireJoinRequest(groupId, requestId);
+
+        if (groupMembershipRepository.existsByUserIdAndGroupId(request.getUser().getId(), groupId)) {
+            groupJoinRequestRepository.delete(request);
+            throw new UserAlreadyGroupMemberException();
+        }
+
+        GroupMembership membership = groupMembershipMapper.toEntity(
+                request.getUser(), request.getGroup(), GroupRole.MEMBER);
+        GroupMembership savedMembership = groupMembershipRepository.save(membership);
+        groupJoinRequestRepository.delete(request);
         return groupMembershipMapper.toResponse(savedMembership);
+    }
+
+    @Transactional
+    public void rejectJoinRequest(Long groupId, Long requesterId, Long requestId) {
+        requireManager(groupId, requesterId);
+        groupJoinRequestRepository.delete(requireJoinRequest(groupId, requestId));
+    }
+
+    private GroupJoinRequest requireJoinRequest(Long groupId, Long requestId) {
+        GroupJoinRequest request = groupJoinRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Join request was not found"));
+        if (!request.getGroup().getId().equals(groupId)) {
+            throw new IllegalArgumentException("Join request was not found");
+        }
+        return request;
+    }
+
+    private GroupJoinRequestResponse toJoinRequestResponse(GroupJoinRequest request) {
+        return new GroupJoinRequestResponse(
+                request.getId(), request.getGroup().getId(), request.getGroup().getName(),
+                request.getUser().getId(), request.getUser().getName(), request.getUser().getEmail(),
+                request.getRequestedAt());
     }
 
 
@@ -195,6 +243,28 @@ public class GroupMembershipService {
         );
 
         groupMembershipRepository.delete(target);
+    }
+
+    @Transactional
+    public void leaveGroup(Long groupId, Long userId) {
+        GroupMembership membership = requireMember(groupId, userId);
+
+        if (membership.getRole() == GroupRole.OWNER) {
+            GroupMembership successor = groupMembershipRepository
+                    .findFirstByGroupIdAndRoleOrderByJoinedAtAsc(groupId, GroupRole.ADMIN)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Choose an admin before leaving this household"));
+
+            successor.setRole(GroupRole.OWNER);
+            successor.setDisplayTitle("Organizer");
+
+            Group group = membership.getGroup();
+            group.setOwner(successor.getUser());
+            groupRepository.save(group);
+        }
+
+        choreRepository.unassignUserFromGroupChores(groupId, userId);
+        groupMembershipRepository.delete(membership);
     }
 
     @Transactional
@@ -254,7 +324,18 @@ public class GroupMembershipService {
             return groupMembershipMapper.toResponse(target);
         }
 
+        if (newRole == GroupRole.ADMIN) {
+            groupMembershipRepository.findAllByGroupId(groupId).stream()
+                    .filter(membership -> membership.getRole() == GroupRole.ADMIN)
+                    .filter(membership -> !membership.getId().equals(target.getId()))
+                    .forEach(membership -> {
+                        membership.setRole(GroupRole.MEMBER);
+                        membership.setDisplayTitle("Member");
+                    });
+        }
+
         target.setRole(newRole);
+        target.setDisplayTitle(newRole == GroupRole.ADMIN ? "Coordinator" : "Member");
 
         return groupMembershipMapper.toResponse(target);
     }

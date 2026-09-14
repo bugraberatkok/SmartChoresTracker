@@ -45,7 +45,13 @@ public class ChoreService {
             Long creatorId,
             CreateChoreRequest request
     ) {
-        groupMembershipService.requireManager(groupId, creatorId);
+        groupMembershipService.requireMember(groupId, creatorId);
+
+        boolean assigningToSelf = request.assignedUserId() != null
+                && request.assignedUserId().equals(creatorId);
+        if (!assigningToSelf) {
+            groupMembershipService.requireManager(groupId, creatorId);
+        }
 
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new GroupNotFoundException(groupId));

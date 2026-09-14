@@ -183,6 +183,16 @@ export interface GroupMemberResponse {
   joinedAt: string
 }
 
+export interface GroupJoinRequestResponse {
+  requestId: number
+  groupId: number
+  groupName: string
+  userId: number
+  name: string
+  email: string
+  requestedAt: string
+}
+
 export function fetchGroupMembers(groupId: number) {
   return request<GroupMemberResponse[]>(`/groups/${groupId}/members`)
 }
@@ -196,9 +206,25 @@ export function addGroupMember(groupId: number, email: string) {
 
 
 export function joinGroupByCode(inviteCode: string) {
-  return request<GroupMemberResponse>('/groups/join-by-code', {
+  return request<GroupJoinRequestResponse>('/groups/join-by-code', {
     method: 'POST',
     body: JSON.stringify({ inviteCode }),
+  })
+}
+
+export function fetchGroupJoinRequests(groupId: number) {
+  return request<GroupJoinRequestResponse[]>(`/groups/${groupId}/members/join-requests`)
+}
+
+export function approveGroupJoinRequest(groupId: number, requestId: number) {
+  return request<GroupMemberResponse>(`/groups/${groupId}/members/join-requests/${requestId}/approve`, {
+    method: 'POST',
+  })
+}
+
+export function rejectGroupJoinRequest(groupId: number, requestId: number) {
+  return request<void>(`/groups/${groupId}/members/join-requests/${requestId}`, {
+    method: 'DELETE',
   })
 }
 
@@ -206,6 +232,10 @@ export function removeGroupMember(groupId: number, userId: number) {
   return request<void>(`/groups/${groupId}/members/${userId}`, {
     method: 'DELETE',
   })
+}
+
+export function leaveGroup(groupId: number) {
+  return request<void>(`/groups/${groupId}/members/me`, { method: 'DELETE' })
 }
 
 export function updateOwnDisplayTitle(
@@ -363,6 +393,7 @@ export interface RewardResponse {
   name: string
   description: string | null
   cost: number
+  createdByUserId: number
   active: boolean
   createdAt: string
 }

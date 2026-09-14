@@ -55,7 +55,7 @@ public class RewardService {
             Long requesterId,
             CreateRewardRequest request
     ) {
-        groupMembershipService.requireManager(groupId, requesterId);
+        groupMembershipService.requireMember(groupId, requesterId);
 
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new GroupNotFoundException(groupId));
@@ -181,10 +181,7 @@ public class RewardService {
             Long requesterId,
             Long rewardId
     ) {
-        groupMembershipService.requireManager(
-                groupId,
-                requesterId
-        );
+        groupMembershipService.requireMember(groupId, requesterId);
 
         Reward reward = rewardRepository
                 .findByIdAndGroupId(rewardId, groupId)
@@ -193,6 +190,11 @@ public class RewardService {
                                 "Reward was not found"
                         )
                 );
+
+        boolean createdByRequester = reward.getCreatedBy().getId().equals(requesterId);
+        if (!createdByRequester) {
+            groupMembershipService.requireManager(groupId, requesterId);
+        }
 
         reward.setActive(false);
     }
@@ -234,6 +236,7 @@ public class RewardService {
                 reward.getName(),
                 reward.getDescription(),
                 reward.getCost(),
+                reward.getCreatedBy().getId(),
                 reward.isActive(),
                 reward.getCreatedAt()
         );

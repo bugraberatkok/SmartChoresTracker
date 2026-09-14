@@ -7,6 +7,7 @@ public record RewardResponse(
         String name,
         String description,
         Integer cost,
+        Long createdByUserId,
         boolean active,
         Instant createdAt
 ) {

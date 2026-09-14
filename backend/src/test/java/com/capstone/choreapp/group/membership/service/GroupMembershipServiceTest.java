@@ -1,10 +1,10 @@
 package com.capstone.choreapp.group.membership.service;
 
 import com.capstone.choreapp.group.entity.Group;
-import com.capstone.choreapp.group.membership.dto.GroupMemberResponse;
-import com.capstone.choreapp.group.membership.entity.GroupMembership;
-import com.capstone.choreapp.group.membership.entity.GroupRole;
+import com.capstone.choreapp.group.membership.dto.GroupJoinRequestResponse;
+import com.capstone.choreapp.group.membership.entity.GroupJoinRequest;
 import com.capstone.choreapp.group.membership.mapper.GroupMembershipMapper;
+import com.capstone.choreapp.group.membership.repository.GroupJoinRequestRepository;
 import com.capstone.choreapp.group.membership.repository.GroupMembershipRepository;
 import com.capstone.choreapp.group.repository.GroupRepository;
 import com.capstone.choreapp.user.entity.User;
@@ -17,7 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,6 +25,9 @@ class GroupMembershipServiceTest {
 
     @Mock
     private GroupMembershipRepository groupMembershipRepository;
+
+    @Mock
+    private GroupJoinRequestRepository groupJoinRequestRepository;
 
     @Mock
     private GroupRepository groupRepository;
@@ -39,18 +42,18 @@ class GroupMembershipServiceTest {
     private GroupMembershipService groupMembershipService;
 
     @Test
-    void shouldJoinGroupUsingInviteCode() {
+    void shouldCreatePendingRequestUsingInviteCode() {
 
         Long groupId = 10L;
         Long userId = 20L;
 
         Group group = mock(Group.class);
         User user = mock(User.class);
-        GroupMembership membership = mock(GroupMembership.class);
-        GroupMemberResponse expectedResponse =
-                mock(GroupMemberResponse.class);
-
         when(group.getId()).thenReturn(groupId);
+        when(group.getName()).thenReturn("Home");
+        when(user.getId()).thenReturn(userId);
+        when(user.getName()).thenReturn("Alex");
+        when(user.getEmail()).thenReturn("alex@example.com");
 
         when(groupRepository.findByInviteCode("A7F3C9"))
                 .thenReturn(Optional.of(group));
@@ -62,25 +65,20 @@ class GroupMembershipServiceTest {
                 .existsByUserIdAndGroupId(userId, groupId))
                 .thenReturn(false);
 
-        when(groupMembershipMapper.toEntity(
-                user,
-                group,
-                GroupRole.MEMBER
-        )).thenReturn(membership);
+        when(groupJoinRequestRepository.existsByUserIdAndGroupId(userId, groupId))
+                .thenReturn(false);
+        when(groupJoinRequestRepository.save(any(GroupJoinRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        when(groupMembershipRepository.save(membership))
-                .thenReturn(membership);
-
-        when(groupMembershipMapper.toResponse(membership))
-                .thenReturn(expectedResponse);
-
-        GroupMemberResponse result =
+        GroupJoinRequestResponse result =
                 groupMembershipService.joinByInviteCode(
                         "  a7f3c9  ",
                         userId
                 );
 
-        assertSame(expectedResponse, result);
+        assertEquals(groupId, result.groupId());
+        assertEquals("Home", result.groupName());
+        assertEquals(userId, result.userId());
 
         verify(groupRepository)
                 .findByInviteCode("A7F3C9");
@@ -88,7 +86,6 @@ class GroupMembershipServiceTest {
         verify(groupMembershipRepository)
                 .existsByUserIdAndGroupId(userId, groupId);
 
-        verify(groupMembershipRepository)
-                .save(membership);
+        verify(groupJoinRequestRepository).save(any(GroupJoinRequest.class));
     }
 }

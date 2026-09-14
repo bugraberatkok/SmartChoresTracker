@@ -285,6 +285,7 @@ function App() {
         onGroupCreated={handleGroupCreated}
         onGroupUpdated={handleGroupUpdated}
         onGroupDeleted={handleGroupDeleted}
+        onGroupLeft={handleGroupDeleted}
         onOpenProfile={openCurrentUserProfile}
         onLogout={handleLogout}
       />
@@ -309,6 +310,18 @@ function App() {
                 : h,
             ),
           )
+        }}
+        onMemberAdded={(member) => {
+          setSelectedHousehold((previous) => previous ? { ...previous, members: [...previous.members, member] } : previous)
+          setHouseholds((previous) => previous.map((item) => item.id === selectedHousehold.id
+            ? { ...item, members: [...item.members, member] }
+            : item))
+        }}
+        onLeaveHousehold={(groupId) => {
+          setHouseholds((previous) => previous.filter((item) => item.id !== groupId))
+          setSelectedHousehold(null)
+          setSelectedMember(null)
+          setPage('households')
         }}
         onCurrentUserUpdated={(user) => {
           setCurrentUser(user)
@@ -341,13 +354,19 @@ function App() {
           )
         }}
         onMemberUpdated={(updatedMember) => {
+          const applyRoleUpdate = (member: Member): Member => {
+            if (member.id === updatedMember.id) return updatedMember
+            if (updatedMember.role === 'ADMIN' && member.role === 'ADMIN') {
+              return { ...member, role: 'MEMBER', isAdmin: false, displayTitle: 'Member' }
+            }
+            return member
+          }
+
           setSelectedHousehold((prev) =>
             prev
               ? {
                   ...prev,
-                  members: prev.members.map((member) =>
-                    member.id === updatedMember.id ? updatedMember : member,
-                  ),
+                  members: prev.members.map(applyRoleUpdate),
                 }
               : prev,
           )
@@ -357,9 +376,7 @@ function App() {
               household.id === selectedHousehold.id
                 ? {
                     ...household,
-                    members: household.members.map((member) =>
-                      member.id === updatedMember.id ? updatedMember : member,
-                    ),
+                    members: household.members.map(applyRoleUpdate),
                   }
                 : household,
             ),
@@ -384,6 +401,8 @@ function App() {
         household={selectedHousehold}
         member={selectedMember}
         personalProfileView={personalProfileView}
+        profileHouseholds={households}
+        currentUserId={currentUser?.id ?? null}
         onHome={() => setPage('households')}
         onBack={() => personalProfileView ? setPage('households') : selectHousehold(selectedHousehold)}
       />

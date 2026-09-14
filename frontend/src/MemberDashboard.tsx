@@ -46,6 +46,8 @@ type Chore = {
   completed: boolean
   recurring: boolean
   backendId: number    // the real id from the API
+  householdId: number
+  householdName?: string
 }
 
 const dateKey = (date: Date) => {
@@ -72,7 +74,7 @@ const week = Array.from({ length: 7 }, (_, index) => {
 })
 
 // Map a backend ChoreResponse to our UI Chore type
-function toUIChore(c: ChoreResponse, occurrenceDate?: string): Chore {
+function toUIChore(c: ChoreResponse, occurrenceDate?: string, householdName?: string): Chore {
   const due = c.dueDate ? new Date(c.dueDate) : new Date(c.createdAt)
   const hours = String(due.getHours()).padStart(2, '0')
   const minutes = String(due.getMinutes()).padStart(2, '0')
@@ -80,6 +82,8 @@ function toUIChore(c: ChoreResponse, occurrenceDate?: string): Chore {
   return {
     id: c.id,
     backendId: c.id,
+    householdId: c.groupId,
+    householdName,
     title: c.title,
     description: c.description ?? '',
     time: `${hours}:${minutes}`,
@@ -93,26 +97,35 @@ function toUIChore(c: ChoreResponse, occurrenceDate?: string): Chore {
   }
 }
 
-function expandChoresForWeek(chores: ChoreResponse[]) {
+function expandChoresForWeek(chores: ChoreResponse[], householdNames: Map<number, string> = new Map()) {
   return chores.flatMap((chore) => {
-    if (!chore.recurring) return [toUIChore(chore)]
+    if (!chore.recurring) return [toUIChore(chore, undefined, householdNames.get(chore.groupId))]
 
     return week
         .filter((day) =>
             chore.recurrenceDays.includes(day.dayOfWeek) &&
             (!chore.recurrenceStartDate || day.date >= chore.recurrenceStartDate)
         )
-        .map((day) => toUIChore(chore, day.date))
+        .map((day) => toUIChore(chore, day.date, householdNames.get(chore.groupId)))
   })
 }
 
 
 const CHORE_ICONS = ['🧹', '🧽', '🧺', '🍽️', '🗑️', '🪴', '🐕', '🛏️', '🛒', '🚿']
 
+type DashboardReward = RewardResponse & {
+  householdId: number
+  householdName: string
+  householdBalance: number
+  canManage: boolean
+}
+
 type Props = {
   household: Household
   member: Member
   personalProfileView?: boolean
+  profileHouseholds?: Household[]
+  currentUserId: number | null
   onHome: () => void
   onBack: () => void
 }
@@ -121,9 +134,20 @@ export default function MemberDashboard({
   household,
   member,
   personalProfileView = false,
+  profileHouseholds = [],
+  currentUserId,
   onHome,
   onBack,
 }: Props) {
+  const dataHouseholds = useMemo(
+    () => personalProfileView ? profileHouseholds : [household],
+    [personalProfileView, profileHouseholds, household],
+  )
+  const householdNames = useMemo(
+    () => new Map(dataHouseholds.map((item) => [item.id, item.name])),
+    [dataHouseholds],
+  )
+  const canCreateForDashboard = household.isAdmin || member.id === currentUserId
   const today = dateKey(new Date())
   const [tab, setTab] = useState<Tab>('chores')
   const [selectedDate, setSelectedDate] = useState(today)
@@ -132,13 +156,13 @@ export default function MemberDashboard({
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntryResponse[]>([])
   const [achievements, setAchievements] = useState<AchievementResponse[]>([])
   const [progressData, setProgressData] = useState<ProgressDayResponse[]>([])
-  const [rewards, setRewards] = useState<RewardResponse[]>([])
+  const [rewards, setRewards] = useState<DashboardReward[]>([])
   const [rewardBalance, setRewardBalance] = useState<RewardBalanceResponse | null>(null)
   const [rewardLoading, setRewardLoading] = useState(true)
   const [rewardError, setRewardError] = useState('')
   const [showRewardForm, setShowRewardForm] = useState(false)
   const [redeemingRewardId, setRedeemingRewardId] = useState<number | null>(null)
-  const [deletingReward, setDeletingReward] = useState<RewardResponse | null>(null)
+  const [deletingReward, setDeletingReward] = useState<DashboardReward | null>(null)
   const [streak, setStreak] = useState<StreakResponse | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [editingChore, setEditingChore] = useState<Chore | null>(null)
@@ -154,12 +178,13 @@ export default function MemberDashboard({
   useEffect(() => {
     let cancelled = false
 
-    fetchGroupChores(household.id)
-      .then((data) => {
+    Promise.all(dataHouseholds.map((item) => fetchGroupChores(item.id)))
+      .then((responses) => {
         if (cancelled) return
+        const data = responses.flat()
         setGroupChores(data)
         const memberChores = data.filter((c) => c.assignedUserId === member.id)
-        const uiChores = expandChoresForWeek(memberChores)
+        const uiChores = expandChoresForWeek(memberChores, householdNames)
         setChores(uiChores)
 
         // Compute total points for this member
@@ -171,10 +196,15 @@ export default function MemberDashboard({
       .finally(() => { if (!cancelled) setLoadingChores(false) })
 
     return () => { cancelled = true }
-  }, [household.id, member.id])
+  }, [dataHouseholds, householdNames, member.id])
 
   useEffect(() => {
     let cancelled = false
+
+    if (personalProfileView) {
+      setLeaderboard([])
+      return
+    }
 
     fetchLeaderboard(household.id)
       .then((data) => {
@@ -189,15 +219,20 @@ export default function MemberDashboard({
     return () => {
       cancelled = true
     }
-  }, [household.id])
+  }, [household.id, personalProfileView])
 
   useEffect(() => {
     let cancelled = false
 
-    fetchAchievements(household.id, member.id)
-      .then((data) => {
+    Promise.all(dataHouseholds.map((item) => fetchAchievements(item.id, member.id)))
+      .then((responses) => {
         if (!cancelled) {
-          setAchievements(data)
+          const templates = responses[0] ?? []
+          setAchievements(templates.map((template) => {
+            const values = responses.map((items) => items.find((item) => item.code === template.code)?.currentValue ?? 0)
+            const currentValue = template.code.includes('STREAK') ? Math.max(...values, 0) : values.reduce((sum, value) => sum + value, 0)
+            return { ...template, currentValue, earned: currentValue >= template.requiredValue }
+          }))
         }
       })
       .catch(() => {
@@ -207,7 +242,7 @@ export default function MemberDashboard({
     return () => {
       cancelled = true
     }
-  }, [household.id, member.id])
+  }, [dataHouseholds, member.id])
 
   const dailyChores = chores.filter((chore) => chore.date === selectedDate)
   const todaysChores = chores.filter((chore) => chore.date === today)
@@ -216,10 +251,14 @@ export default function MemberDashboard({
   useEffect(() => {
     let cancelled = false
 
-    fetchStreak(household.id, member.id)
-      .then((data) => {
+    Promise.all(dataHouseholds.map((item) => fetchStreak(item.id, member.id)))
+      .then((responses) => {
         if (!cancelled) {
-          setStreak(data)
+          setStreak({
+            currentStreak: Math.max(...responses.map((item) => item.currentStreak), 0),
+            longestStreak: Math.max(...responses.map((item) => item.longestStreak), 0),
+            lastActiveDate: responses.map((item) => item.lastActiveDate).filter((date): date is string => Boolean(date)).sort().at(-1) ?? null,
+          })
         }
       })
       .catch(() => {
@@ -229,15 +268,20 @@ export default function MemberDashboard({
     return () => {
       cancelled = true
     }
-  }, [household.id, member.id])
+  }, [dataHouseholds, member.id])
 
   useEffect(() => {
     let cancelled = false
 
-    fetchWeeklyProgress(household.id, member.id)
-      .then((data) => {
+    Promise.all(dataHouseholds.map((item) => fetchWeeklyProgress(item.id, member.id)))
+      .then((responses) => {
         if (!cancelled) {
-          setProgressData(data)
+          const totals = new Map<string, ProgressDayResponse>()
+          responses.flat().forEach((item) => {
+            const existing = totals.get(item.date)
+            totals.set(item.date, { ...item, completedChores: (existing?.completedChores ?? 0) + item.completedChores })
+          })
+          setProgressData([...totals.values()])
         }
       })
       .catch(() => {
@@ -247,20 +291,33 @@ export default function MemberDashboard({
     return () => {
       cancelled = true
     }
-  }, [household.id, member.id])
+  }, [dataHouseholds, member.id])
 
   useEffect(() => {
     let cancelled = false
 
 
-    Promise.all([
-      fetchRewards(household.id),
-      fetchRewardBalance(household.id),
-    ])
-      .then(([rewardData, balanceData]) => {
+    Promise.all(dataHouseholds.map(async (item) => {
+      const [rewardData, balanceData] = await Promise.all([
+        fetchRewards(item.id),
+        fetchRewardBalance(item.id),
+      ])
+      return { item, rewardData, balanceData }
+    }))
+      .then((responses) => {
         if (cancelled) return
-        setRewards(rewardData)
-        setRewardBalance(balanceData)
+        setRewards(responses.flatMap(({ item, rewardData, balanceData }) => rewardData.map((reward) => ({
+          ...reward,
+          householdId: item.id,
+          householdName: item.name,
+          householdBalance: balanceData.availablePoints,
+          canManage: item.isAdmin || reward.createdByUserId === currentUserId,
+        }))))
+        setRewardBalance(responses.reduce<RewardBalanceResponse>((total, { balanceData }) => ({
+          earnedPoints: total.earnedPoints + balanceData.earnedPoints,
+          spentPoints: total.spentPoints + balanceData.spentPoints,
+          availablePoints: total.availablePoints + balanceData.availablePoints,
+        }), { earnedPoints: 0, spentPoints: 0, availablePoints: 0 }))
       })
       .catch((err) => {
         if (!cancelled) {
@@ -274,7 +331,7 @@ export default function MemberDashboard({
     return () => {
       cancelled = true
     }
-  }, [household.id, member.id])
+  }, [dataHouseholds, member.id])
 
   const graphData = useMemo(() => {
     const counts = new Map(
@@ -306,20 +363,20 @@ export default function MemberDashboard({
   const toggleChore = async (chore: Chore) => {
     try {
       const updated = chore.completed
-        ? await uncompleteChore(household.id, chore.backendId, chore.date)
-        : await completeChore(household.id, chore.backendId, chore.date)
-      setGroupChores((current) => current.map((item) => item.id === updated.id ? updated : item))
+        ? await uncompleteChore(chore.householdId, chore.backendId, chore.date)
+        : await completeChore(chore.householdId, chore.backendId, chore.date)
+      setGroupChores((current) => current.map((item) => item.id === updated.id && item.groupId === updated.groupId ? updated : item))
       setChores((current) =>
-        current.map((item) => item.id === chore.id && item.date === chore.date ? toUIChore(updated, chore.date) : item),
+        current.map((item) => item.id === chore.id && item.householdId === chore.householdId && item.date === chore.date ? toUIChore(updated, chore.date, chore.householdName) : item),
       )
       setPoints((value) => Math.max(0, value + (chore.completed ? -1 : 1) * (updated.points ?? 0)))
 
       // Chore completion already succeeded; refresh gamification data separately
-      void Promise.all([
-        fetchLeaderboard(household.id),
-        fetchWeeklyProgress(household.id, member.id),
-        fetchAchievements(household.id, member.id),
-        fetchStreak(household.id, member.id),
+      if (!personalProfileView) void Promise.all([
+        fetchLeaderboard(chore.householdId),
+        fetchWeeklyProgress(chore.householdId, member.id),
+        fetchAchievements(chore.householdId, member.id),
+        fetchStreak(chore.householdId, member.id),
       ])
         .then(([
           refreshedLeaderboard,
@@ -367,7 +424,7 @@ export default function MemberDashboard({
     }
 
     try {
-      const updated = await updateChore(household.id, editingChore.backendId, {
+      const updated = await updateChore(editingChore.householdId, editingChore.backendId, {
         title,
         description,
         points,
@@ -375,8 +432,8 @@ export default function MemberDashboard({
         recurring: editingRecurring,
         recurrenceDays,
       })
-      setGroupChores((current) => current.map((item) => item.id === updated.id ? updated : item))
-      setChores((current) => current.flatMap((item) => item.backendId === editingChore.backendId ? [] : [item]).concat(expandChoresForWeek([updated])))
+      setGroupChores((current) => current.map((item) => item.id === updated.id && item.groupId === updated.groupId ? updated : item))
+      setChores((current) => current.flatMap((item) => item.backendId === editingChore.backendId && item.householdId === editingChore.householdId ? [] : [item]).concat(expandChoresForWeek([updated], householdNames)))
       setEditingChore(null)
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : 'Failed to update chore')
@@ -388,10 +445,10 @@ export default function MemberDashboard({
 
     setActionError('')
     try {
-      await deleteChore(household.id, deletingChore.backendId)
-      setGroupChores((current) => current.filter((item) => item.id !== deletingChore.backendId))
-      setChores((current) => current.filter((item) => item.backendId !== deletingChore.backendId))
-      const deletedRecord = groupChores.find((item) => item.id === deletingChore.backendId)
+      await deleteChore(deletingChore.householdId, deletingChore.backendId)
+      setGroupChores((current) => current.filter((item) => item.id !== deletingChore.backendId || item.groupId !== deletingChore.householdId))
+      setChores((current) => current.filter((item) => item.backendId !== deletingChore.backendId || item.householdId !== deletingChore.householdId))
+      const deletedRecord = groupChores.find((item) => item.id === deletingChore.backendId && item.groupId === deletingChore.householdId)
       if (deletedRecord) setPoints((value) => Math.max(0, value - (deletedRecord.points ?? 0) * (deletedRecord.recurring ? deletedRecord.completedDates.length : deletedRecord.status === 'COMPLETED' ? 1 : 0)))
       setDeletingChore(null)
       // Refresh derived gamification after deletion.
@@ -472,19 +529,25 @@ export default function MemberDashboard({
         description,
         cost,
       })
-      setRewards((current) => [created, ...current])
+      setRewards((current) => [{
+        ...created,
+        householdId: household.id,
+        householdName: household.name,
+        householdBalance: rewardBalance?.availablePoints ?? 0,
+        canManage: household.isAdmin || created.createdByUserId === currentUserId,
+      }, ...current])
       setShowRewardForm(false)
     } catch (err) {
       setRewardError(err instanceof ApiError ? err.message : 'Failed to create reward')
     }
   }
 
-  const handleRedeemReward = async (reward: RewardResponse) => {
+  const handleRedeemReward = async (reward: DashboardReward) => {
     setRewardError('')
     setRedeemingRewardId(reward.id)
 
     try {
-      const result = await redeemReward(household.id, reward.id)
+      const result = await redeemReward(reward.householdId, reward.id)
       setRewardBalance((current) => current
         ? {
             ...current,
@@ -493,6 +556,9 @@ export default function MemberDashboard({
           }
         : current,
       )
+      setRewards((current) => current.map((item) => item.id === reward.id && item.householdId === reward.householdId
+        ? { ...item, householdBalance: result.remainingPoints }
+        : item))
     } catch (err) {
       setRewardError(err instanceof ApiError ? err.message : 'Failed to redeem reward')
     } finally {
@@ -505,8 +571,8 @@ export default function MemberDashboard({
 
     setRewardError('')
     try {
-      await deactivateReward(household.id, deletingReward.id)
-      setRewards((current) => current.filter((reward) => reward.id !== deletingReward.id))
+      await deactivateReward(deletingReward.householdId, deletingReward.id)
+      setRewards((current) => current.filter((reward) => reward.id !== deletingReward.id || reward.householdId !== deletingReward.householdId))
       setDeletingReward(null)
     } catch (err) {
       setRewardError(err instanceof ApiError ? err.message : 'Failed to remove reward')
@@ -526,7 +592,17 @@ export default function MemberDashboard({
           <span className="brand-mark"><HomeMark /></span>
           <span>Smart Chores</span>
         </button>
-        {!personalProfileView && <div className="household-chip"><span>{household.emoji}</span>{household.name}</div>}
+        {!personalProfileView && (
+          <button
+            className="household-chip"
+            type="button"
+            onClick={onBack}
+            aria-label={`Return to ${household.name}`}
+            title={`Return to ${household.name}`}
+          >
+            <span>{household.emoji}</span>{household.name}
+          </button>
+        )}
       </header>
 
       <section className="dashboard-content">
@@ -568,14 +644,14 @@ export default function MemberDashboard({
             <div className="week-days">{week.map((item) => <button key={item.date} className={selectedDate === item.date ? 'selected' : ''} onClick={() => setSelectedDate(item.date)}><small>{item.day}</small><strong>{item.dayNumber}</strong><i>{chores.some((chore) => chore.date === item.date) && '•'}</i></button>)}</div>
           </div>
 
-          <div className="chores-heading"><div><span className="eyebrow">Any time</span><h2>Daily chores</h2></div>{household.isAdmin && <button className="add-chore-button" type="button" onClick={() => setShowAdd(true)}><span>+</span> Add chore</button>}</div>
+          <div className="chores-heading"><div><span className="eyebrow">Any time</span><h2>Daily chores</h2></div>{!personalProfileView && canCreateForDashboard && <button className="add-chore-button" type="button" onClick={() => setShowAdd(true)}><span>+</span> Add chore</button>}</div>
           <div className="chore-list">
             {loadingChores && <p style={{ textAlign: 'center', opacity: 0.6, padding: '1rem' }}>Loading chores...</p>}
-            {!loadingChores && dailyChores.length ? dailyChores.map((chore) => <article className={`chore-card ${chore.completed ? 'completed' : ''}`} key={`${chore.id}-${chore.date}`}>
+            {!loadingChores && dailyChores.length ? dailyChores.map((chore) => <article className={`chore-card ${chore.completed ? 'completed' : ''}`} key={`${chore.householdId}-${chore.id}-${chore.date}`}>
               <button className="chore-check" type="button" onClick={() => toggleChore(chore)} aria-label={chore.completed ? `Mark ${chore.title} incomplete` : `Complete ${chore.title}`}>{chore.completed && '✓'}</button>
               <span className="chore-emoji">{chore.icon}</span>
-              <div className="chore-info"><span>◷ {chore.time}</span><strong>{chore.title}</strong>{chore.description && <small>{chore.description}</small>}</div>
-              {household.isAdmin && <div style={{ display: 'flex', gap: '0.35rem' }}><button type="button" onClick={() => { setActionError(''); setEditingRecurring(chore.recurring); setEditingChore(chore) }} title="Edit chore">✎</button><button type="button" onClick={() => { setActionError(''); setDeletingChore(chore) }} title="Delete chore">🗑</button></div>}
+              <div className="chore-info"><span>◷ {chore.time}{personalProfileView && chore.householdName ? ` · ${chore.householdName}` : ''}</span><strong>{chore.title}</strong>{chore.description && <small>{chore.description}</small>}</div>
+              {(personalProfileView ? dataHouseholds.find((item) => item.id === chore.householdId)?.isAdmin : household.isAdmin) && <div style={{ display: 'flex', gap: '0.35rem' }}><button type="button" onClick={() => { setActionError(''); setEditingRecurring(chore.recurring); setEditingChore(chore) }} title="Edit chore">✎</button><button type="button" onClick={() => { setActionError(''); setDeletingChore(chore) }} title="Delete chore">🗑</button></div>}
               <div className="chore-points"><strong>{chore.points}</strong><span>★</span></div>
             </article>) : !loadingChores && <div className="empty-state"><span>☀️</span><h3>No chores for this day</h3><p>Enjoy the free time or add a new chore.</p></div>}
           </div>
@@ -591,7 +667,7 @@ export default function MemberDashboard({
                 <h2>Rewards</h2>
                 <p>Spend points earned from completed chores on household rewards.</p>
               </div>
-              {household.isAdmin && (
+              {!personalProfileView && canCreateForDashboard && (
                 <button
                   className="add-chore-button"
                   type="button"
@@ -633,15 +709,16 @@ export default function MemberDashboard({
             ) : (
               <div className="reward-grid">
                 {rewards.map((reward) => {
-                  const affordable = (rewardBalance?.availablePoints ?? 0) >= reward.cost
+                  const affordable = reward.householdBalance >= reward.cost
 
                   return (
-                    <article className="reward-card" key={reward.id}>
+                    <article className="reward-card" key={`${reward.householdId}-${reward.id}`}>
                       <div className="reward-card-top">
                         <span className="reward-gift">🎁</span>
                         <strong>{reward.cost} pts</strong>
                       </div>
                       <h3>{reward.name}</h3>
+                      {personalProfileView && <small className="reward-household">{reward.householdName}</small>}
                       <p>{reward.description || 'A custom household reward.'}</p>
 
                       <div className="reward-card-actions">
@@ -658,7 +735,7 @@ export default function MemberDashboard({
                               : 'Not enough points'}
                         </button>
 
-                        {household.isAdmin && (
+                        {reward.canManage && (
                           <button
                             className="member-secondary-action reward-remove"
                             type="button"
@@ -676,12 +753,12 @@ export default function MemberDashboard({
           </section>
         )}
 
-        {tab === 'progress' && <section className="tab-page"><div className="tab-page-heading"><span className="eyebrow">This week</span><h2>Progress</h2><p>See consistency, completed chores, and points earned over time.</p></div><div className="stats-row"><div><strong>{chores.filter((c) => c.completed).length}</strong><span>Chores completed</span></div><div><strong>{points}</strong><span>Total points</span></div><div><strong>{todaysChores.length}</strong><span>Today's chores</span></div></div><div className="progress-chart"><div className="chart-top"><strong>Weekly activity</strong><span>Chores completed</span></div><div className="line-chart"><svg viewBox="0 0 700 225" role="img" aria-label="Line graph of chores completed this week"><line x1="30" y1="35" x2="666" y2="35" /><line x1="30" y1="112" x2="666" y2="112" /><line x1="30" y1="190" x2="666" y2="190" /><polyline className="activity-line" points={linePoints} />{graphData.map((item, index) => <g key={item.day}><circle cx={30 + index * 106} cy={190 - item.value * 1.55} r="6" /><text className="graph-value" x={30 + index * 106} y={178 - item.value * 1.55}>{item.count}</text><text className="graph-day" x={30 + index * 106} y="216">{item.day}</text></g>)}</svg></div></div><div className="ranking-table"><div className="ranking-heading"><span>🏁</span><div><strong>Household ranking</strong><small>Ranked by total points</small></div></div>{ranking.map((entry) => <div className={`ranking-row ${entry.userId === member.id ? 'current-member' : ''}`} key={entry.userId}><strong>#{entry.rank}</strong><span>{entry.name}{entry.userId === member.id && <small>You</small>}</span><b>{entry.totalPoints} pts</b></div>)}</div></section>}
+        {tab === 'progress' && <section className="tab-page"><div className="tab-page-heading"><span className="eyebrow">This week</span><h2>Progress</h2><p>See consistency, completed chores, and points earned over time.</p></div><div className="stats-row"><div><strong>{chores.filter((c) => c.completed).length}</strong><span>Chores completed</span></div><div><strong>{points}</strong><span>Total points</span></div><div><strong>{todaysChores.length}</strong><span>Today's chores</span></div></div><div className="progress-chart"><div className="chart-top"><strong>Weekly activity</strong><span>Chores completed</span></div><div className="line-chart"><svg viewBox="0 0 700 225" role="img" aria-label="Line graph of chores completed this week"><line x1="30" y1="35" x2="666" y2="35" /><line x1="30" y1="112" x2="666" y2="112" /><line x1="30" y1="190" x2="666" y2="190" /><polyline className="activity-line" points={linePoints} />{graphData.map((item, index) => <g key={item.day}><circle cx={30 + index * 106} cy={190 - item.value * 1.55} r="6" /><text className="graph-value" x={30 + index * 106} y={178 - item.value * 1.55}>{item.count}</text><text className="graph-day" x={30 + index * 106} y="216">{item.day}</text></g>)}</svg></div></div>{!personalProfileView && <div className="ranking-table"><div className="ranking-heading"><span>🏁</span><div><strong>Household ranking</strong><small>Ranked by total points</small></div></div>{ranking.map((entry) => <div className={`ranking-row ${entry.userId === member.id ? 'current-member' : ''}`} key={entry.userId}><strong>#{entry.rank}</strong><span>{entry.name}{entry.userId === member.id && <small>You</small>}</span><b>{entry.totalPoints} pts</b></div>)}</div>}</section>}
       </section>
 
-      {showAdd && household.isAdmin && <div className="modal-backdrop" onMouseDown={() => setShowAdd(false)}><section className="modal chore-modal" role="dialog" aria-modal="true" aria-labelledby="add-chore-title" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" type="button" onClick={() => setShowAdd(false)}>×</button><span className="modal-icon">🧹</span><h2 id="add-chore-title">Add a chore</h2><p>Assign a new task to {member.name} for {week.find((day) => day.date === selectedDate)?.label}.</p><form onSubmit={addChore}><label>Choose an icon</label><div className="icon-picker">{CHORE_ICONS.map((icon, index) => <label key={icon}><input type="radio" name="icon" value={icon} defaultChecked={index === 0} /><span>{icon}</span></label>)}</div><label htmlFor="chore-title">Chore name</label><input className="modal-input" id="chore-title" name="title" placeholder="e.g. Water the plants" required /><label htmlFor="chore-description">Description</label><input className="modal-input" id="chore-description" name="description" placeholder="e.g. Clean the counter and wash the dishes" /><div className="modal-row"><div><label htmlFor="chore-time">Time</label><input className="modal-input" id="chore-time" name="time" type="time" required /></div><div><label htmlFor="chore-points">Points</label><input className="modal-input" id="chore-points" name="points" type="number" min="1" max="50" defaultValue="5" required /></div></div><label className="recurring-toggle"><input type="checkbox" checked={recurring} onChange={(event) => setRecurring(event.target.checked)} /> Recurring task</label>{recurring && <fieldset className="weekday-picker"><legend>Repeat on</legend>{week.map((day) => <label key={day.dayOfWeek}><input type="checkbox" name="recurrenceDays" value={day.dayOfWeek} /><span>{day.day.slice(0, 2)}</span></label>)}</fieldset>}{addError && <p className="form-message error-message" role="alert">{addError}</p>}<button className="submit-button" type="submit">Add chore <span>→</span></button></form></section></div>}
+      {showAdd && canCreateForDashboard && <div className="modal-backdrop" onMouseDown={() => setShowAdd(false)}><section className="modal chore-modal" role="dialog" aria-modal="true" aria-labelledby="add-chore-title" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" type="button" onClick={() => setShowAdd(false)}>×</button><span className="modal-icon">🧹</span><h2 id="add-chore-title">Add a chore</h2><p>Assign a new task to {member.name} for {week.find((day) => day.date === selectedDate)?.label}.</p><form onSubmit={addChore}><label>Choose an icon</label><div className="icon-picker">{CHORE_ICONS.map((icon, index) => <label key={icon}><input type="radio" name="icon" value={icon} defaultChecked={index === 0} /><span>{icon}</span></label>)}</div><label htmlFor="chore-title">Chore name</label><input className="modal-input" id="chore-title" name="title" placeholder="e.g. Water the plants" required /><label htmlFor="chore-description">Description</label><input className="modal-input" id="chore-description" name="description" placeholder="e.g. Clean the counter and wash the dishes" /><div className="modal-row"><div><label htmlFor="chore-time">Time</label><input className="modal-input" id="chore-time" name="time" type="time" required /></div><div><label htmlFor="chore-points">Points</label><input className="modal-input" id="chore-points" name="points" type="number" min="1" max="50" defaultValue="5" required /></div></div><label className="recurring-toggle"><input type="checkbox" checked={recurring} onChange={(event) => setRecurring(event.target.checked)} /> Recurring task</label>{recurring && <fieldset className="weekday-picker"><legend>Repeat on</legend>{week.map((day) => <label key={day.dayOfWeek}><input type="checkbox" name="recurrenceDays" value={day.dayOfWeek} /><span>{day.day.slice(0, 2)}</span></label>)}</fieldset>}{addError && <p className="form-message error-message" role="alert">{addError}</p>}<button className="submit-button" type="submit">Add chore <span>→</span></button></form></section></div>}
 
-      {editingChore && household.isAdmin && (
+      {editingChore && (personalProfileView ? dataHouseholds.find((item) => item.id === editingChore.householdId)?.isAdmin : household.isAdmin) && (
         <div className="modal-backdrop" onMouseDown={() => setEditingChore(null)}>
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-chore-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className="modal-close" type="button" onClick={() => setEditingChore(null)}>×</button>
@@ -706,7 +783,7 @@ export default function MemberDashboard({
         </div>
       )}
 
-      {showRewardForm && household.isAdmin && (
+      {showRewardForm && canCreateForDashboard && (
         <div className="modal-backdrop" onMouseDown={() => setShowRewardForm(false)}>
           <section
             className="modal"
@@ -759,7 +836,7 @@ export default function MemberDashboard({
         </div>
       )}
 
-      {deletingReward && household.isAdmin && (
+      {deletingReward && deletingReward.canManage && (
         <div className="modal-backdrop" onMouseDown={() => setDeletingReward(null)}>
           <section
             className="modal"
@@ -781,7 +858,7 @@ export default function MemberDashboard({
         </div>
       )}
 
-      {deletingChore && household.isAdmin && (
+      {deletingChore && (personalProfileView ? dataHouseholds.find((item) => item.id === deletingChore.householdId)?.isAdmin : household.isAdmin) && (
         <div className="modal-backdrop" onMouseDown={() => setDeletingChore(null)}>
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="delete-chore-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className="modal-close" type="button" onClick={() => setDeletingChore(null)}>×</button>

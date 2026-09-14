@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { HomeMark } from './LoginPage'
 import type { Household } from './types'
 import { avatarEmoji, deriveInitials } from './types'
-import { createGroup, joinGroupByCode, fetchGroups, updateGroup, deleteGroup, ApiError, type AuthUser, type GroupResponse } from './api'
+import { createGroup, joinGroupByCode, updateGroup, deleteGroup, leaveGroup, ApiError, type AuthUser, type GroupResponse } from './api'
 
 const HOUSEHOLD_EMOJIS = ['🏡', '🏠', '🏢', '🎓', '🌿', '🏖️', '🏕️', '🏰', '🛖', '🏘️']
 
@@ -15,16 +15,18 @@ type Props = {
   onGroupCreated: (group: GroupResponse) => void
   onGroupUpdated: (group: GroupResponse) => void
   onGroupDeleted: (groupId: number) => void
+  onGroupLeft: (groupId: number) => void
   onOpenProfile: () => void
   onLogout: () => void
 }
 
-export default function HouseholdsPage({ households, currentUser, loading, onSelect, onGroupCreated, onGroupUpdated, onGroupDeleted, onOpenProfile, onLogout }: Props) {
+export default function HouseholdsPage({ households, currentUser, loading, onSelect, onGroupCreated, onGroupUpdated, onGroupDeleted, onGroupLeft, onOpenProfile, onLogout }: Props) {
   const [dialog, setDialog] = useState<'create' | 'join' | null>(null)
   const [editingHousehold, setEditingHousehold] = useState<Household | null>(null)
   const [deletingHousehold, setDeletingHousehold] = useState<Household | null>(null)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [joinRequested, setJoinRequested] = useState('')
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -54,19 +56,8 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
     const inviteCode = String(data.get('code') ?? '').trim().toUpperCase()
 
     try {
-      await joinGroupByCode(inviteCode)
-
-      const groups = await fetchGroups()
-      const joinedGroup = groups.find(
-        (group) => !households.some((household) => household.id === group.id),
-      )
-
-      if (!joinedGroup) {
-        throw new Error('Joined household could not be loaded')
-      }
-
-      onGroupCreated(joinedGroup)
-      setDialog(null)
+      const request = await joinGroupByCode(inviteCode)
+      setJoinRequested(`Your request to join ${request.groupName} was sent to its managers for approval.`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to join household')
     } finally {
@@ -111,6 +102,16 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
     }
   }
 
+  const handleLeave = async (household: Household) => {
+    if (!window.confirm(`Leave ${household.name}?`)) return
+    try {
+      await leaveGroup(household.id)
+      onGroupLeft(household.id)
+    } catch (err) {
+      window.alert(err instanceof ApiError ? err.message : 'Failed to leave household')
+    }
+  }
+
   const userInitials = currentUser ? deriveInitials(currentUser.name) : '??'
   const userAvatar = avatarEmoji(currentUser?.avatarKey)
   const userFirstName = currentUser?.name.split(' ')[0] ?? 'User'
@@ -135,17 +136,18 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
             <article className="household-card" key={household.id}>
               <button className="household-open-button" type="button" onClick={() => onSelect(household)}>
                 <span className="household-icon home">{household.emoji}</span>
-                <span className="household-details"><span className="card-topline"><span>{household.name}</span>{household.isAdmin && <span className="admin-tag">Admin</span>}</span><strong>{household.name}</strong><small>{household.members.length} {household.members.length === 1 ? 'member' : 'members'}</small></span>
+                <span className="household-details"><span className="card-topline"><span>{household.name}</span>{household.isAdmin && <span className="admin-tag">{household.ownerId === currentUser?.id ? 'Owner' : 'Admin'}</span>}</span><strong>{household.name}</strong><small>{household.members.length} {household.members.length === 1 ? 'member' : 'members'}</small></span>
               </button>
-              {household.ownerId === currentUser?.id && <div className="household-card-actions">
-                <button type="button" title="Change household info" aria-label={`Edit ${household.name}`} onClick={() => { setError(''); setEditingHousehold({ ...household }) }}>✎</button>
-                <button type="button" title="Delete household" aria-label={`Delete ${household.name}`} onClick={() => { setError(''); setDeletingHousehold(household) }}>🗑</button>
-              </div>}
+              <div className="household-card-actions">
+                {household.ownerId === currentUser?.id && <button type="button" title="Change household info" aria-label={`Edit ${household.name}`} onClick={() => { setError(''); setEditingHousehold({ ...household }) }}>✎</button>}
+                {household.ownerId === currentUser?.id && <button type="button" title="Delete household" aria-label={`Delete ${household.name}`} onClick={() => { setError(''); setDeletingHousehold(household) }}>🗑</button>}
+                <button className="leave-household-card-button" type="button" title="Leave household" aria-label={`Leave ${household.name}`} onClick={() => handleLeave(household)}>Leave</button>
+              </div>
             </article>
           ))}
 
           <button className="add-household-card" type="button" onClick={() => { setDialog('create'); setError('') }}><span className="plus-icon">+</span><strong>Create household</strong><small>Start a new shared space</small></button>
-          <button className="add-household-card" type="button" onClick={() => { setDialog('join'); setError('') }}><span className="plus-icon">+</span><strong>Join a household</strong><small>Enter an invite code</small></button>
+          <button className="add-household-card" type="button" onClick={() => { setDialog('join'); setError(''); setJoinRequested('') }}><span className="plus-icon">+</span><strong>Join a household</strong><small>Enter an invite code</small></button>
         </div>
       </section>
 
@@ -169,7 +171,8 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
                 <input className="modal-input code-input" id="household-code" name="code" type="text" maxLength={12} placeholder="e.g. A7F3C9" autoCapitalize="characters" required />
               </>}
               {error && <p className="form-message error-message" role="alert">{error}</p>}
-              <button className="submit-button" type="submit" disabled={submitting}>{dialog === 'create' ? 'Create household' : 'Join household'} <span>→</span></button>
+              {joinRequested && <p className="form-message success-message" role="status">{joinRequested}</p>}
+              {!joinRequested && <button className="submit-button" type="submit" disabled={submitting}>{dialog === 'create' ? 'Create household' : 'Request to join'} <span>→</span></button>}
             </form>
           </section>
         </div>

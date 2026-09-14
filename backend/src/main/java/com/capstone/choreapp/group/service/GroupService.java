@@ -21,6 +21,7 @@ import com.capstone.choreapp.group.membership.entity.GroupMembership;
 import com.capstone.choreapp.group.membership.entity.GroupRole;
 import com.capstone.choreapp.group.membership.mapper.GroupMembershipMapper;
 import com.capstone.choreapp.group.membership.repository.GroupMembershipRepository;
+import com.capstone.choreapp.group.membership.repository.GroupJoinRequestRepository;
 import com.capstone.choreapp.group.repository.GroupRepository;
 import com.capstone.choreapp.user.entity.User;
 import com.capstone.choreapp.user.exception.UserNotFoundException;
@@ -36,6 +37,7 @@ public class GroupService {
     private final UserRepository userRepository;
     private final GroupMapper groupMapper;
     private final GroupMembershipRepository groupMembershipRepository;
+    private final GroupJoinRequestRepository groupJoinRequestRepository;
     private final GroupMembershipMapper groupMembershipMapper;
     private final GroupMembershipService groupMembershipService;
     private final ChoreRepository choreRepository;
@@ -131,6 +133,7 @@ public class GroupService {
         choreRepository.deleteRecurrenceDaysByGroupId(groupId);
         choreRepository.deleteAllByGroupId(groupId);
 
+        groupJoinRequestRepository.deleteAllByGroupId(groupId);
         groupMembershipRepository.deleteAllByGroupId(groupId);
 
         groupRepository.delete(group);
@@ -141,7 +144,7 @@ public class GroupService {
             Long groupId,
             Long requesterId
     ) {
-        groupMembershipService.requireMember(
+        groupMembershipService.requireManager(
                 groupId,
                 requesterId
         );
