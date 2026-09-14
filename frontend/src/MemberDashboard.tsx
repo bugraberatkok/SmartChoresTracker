@@ -112,6 +112,7 @@ const CHORE_ICONS = ['🧹', '🧽', '🧺', '🍽️', '🗑️', '🪴', '🐕
 type Props = {
   household: Household
   member: Member
+  personalProfileView?: boolean
   onHome: () => void
   onBack: () => void
 }
@@ -119,6 +120,7 @@ type Props = {
 export default function MemberDashboard({
   household,
   member,
+  personalProfileView = false,
   onHome,
   onBack,
 }: Props) {
@@ -524,11 +526,11 @@ export default function MemberDashboard({
           <span className="brand-mark"><HomeMark /></span>
           <span>Smart Chores</span>
         </button>
-        <div className="household-chip"><span>{household.emoji}</span>{household.name}</div>
+        {!personalProfileView && <div className="household-chip"><span>{household.emoji}</span>{household.name}</div>}
       </header>
 
       <section className="dashboard-content">
-        <button className="back-button" type="button" onClick={onBack}>← All members</button>
+        <button className="back-button" type="button" onClick={onBack}>{personalProfileView ? '← Back' : '← All members'}</button>
         <div className="member-hero">
           <div className="dashboard-person"><span className={`dashboard-avatar ${avatarEmoji(member.avatarKey) ? 'emoji-avatar' : ''}`} style={{ background: avatarEmoji(member.avatarKey) ? '#fff' : member.color }}>{avatarEmoji(member.avatarKey) ?? member.initials}</span><div><span className="eyebrow">Daily dashboard</span><h1>{member.name}</h1><p>{completedCount} of {dailyChores.length} chores complete today</p></div></div>
           <div className="dashboard-stats">

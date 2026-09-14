@@ -110,7 +110,9 @@ public class GroupService {
 
         groupMapper.updateEntity(group, request);
 
-        return groupMapper.toResponse(group);
+        Group savedGroup = groupRepository.saveAndFlush(group);
+
+        return groupMapper.toResponse(savedGroup);
     }
 
     @Transactional

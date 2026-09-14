@@ -85,7 +85,7 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
       const group = await updateGroup(editingHousehold.id, {
         name: String(data.get('name')),
         description: String(data.get('description') ?? ''),
-        emoji: String(data.get('emoji') ?? editingHousehold.emoji),
+        emoji: editingHousehold.emoji,
       })
       onGroupUpdated(group)
       setEditingHousehold(null)
@@ -138,7 +138,7 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
                 <span className="household-details"><span className="card-topline"><span>{household.name}</span>{household.isAdmin && <span className="admin-tag">Admin</span>}</span><strong>{household.name}</strong><small>{household.members.length} {household.members.length === 1 ? 'member' : 'members'}</small></span>
               </button>
               {household.ownerId === currentUser?.id && <div className="household-card-actions">
-                <button type="button" title="Change household info" aria-label={`Edit ${household.name}`} onClick={() => { setError(''); setEditingHousehold(household) }}>✎</button>
+                <button type="button" title="Change household info" aria-label={`Edit ${household.name}`} onClick={() => { setError(''); setEditingHousehold({ ...household }) }}>✎</button>
                 <button type="button" title="Delete household" aria-label={`Delete ${household.name}`} onClick={() => { setError(''); setDeletingHousehold(household) }}>🗑</button>
               </div>}
             </article>
@@ -185,7 +185,7 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
             <p>Update the household name or description.</p>
             <form onSubmit={handleUpdate}>
               <label>Choose a household avatar</label>
-              <div className="household-emoji-picker">{HOUSEHOLD_EMOJIS.map((emoji) => <label key={emoji}><input type="radio" name="emoji" value={emoji} defaultChecked={emoji === editingHousehold.emoji} /><span>{emoji}</span></label>)}</div>
+              <div className="household-emoji-picker">{HOUSEHOLD_EMOJIS.map((emoji) => <label key={emoji}><input type="radio" name="emoji" value={emoji} checked={emoji === editingHousehold.emoji} onChange={() => setEditingHousehold((household) => household ? { ...household, emoji } : household)} /><span>{emoji}</span></label>)}</div>
               <label htmlFor="edit-household-name">Household name</label>
               <input className="modal-input" id="edit-household-name" name="name" defaultValue={editingHousehold.name} required />
               <label htmlFor="edit-household-description">Description</label>

@@ -99,6 +99,7 @@ function App() {
   const [households, setHouseholds] = useState<Household[]>([])
   const [selectedHousehold, setSelectedHousehold] = useState<Household | null>(null)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
+  const [personalProfileView, setPersonalProfileView] = useState(false)
   const [loading, setLoading] = useState(isLoggedIn())
 
   // ---- load current user & groups after login ----------------------------
@@ -155,6 +156,7 @@ function App() {
     setHouseholds([])
     setSelectedHousehold(null)
     setSelectedMember(null)
+    setPersonalProfileView(false)
     setPage('login')
   }
 
@@ -178,6 +180,7 @@ function App() {
   // ---- household selected → fetch members --------------------------------
 
   const selectHousehold = async (household: Household) => {
+    setPersonalProfileView(false)
     setSelectedHousehold(household)
     setPage('members')
 
@@ -258,6 +261,7 @@ function App() {
 
       setSelectedHousehold(enriched)
       setSelectedMember(currentMember)
+      setPersonalProfileView(true)
       setHouseholds((previous) => previous.map((item) => item.id === enriched.id ? enriched : item))
       setPage('dashboard')
     } catch {
@@ -366,6 +370,7 @@ function App() {
           )
         }}
         onSelectMember={(member) => {
+          setPersonalProfileView(false)
           setSelectedMember(member)
           setPage('dashboard')
         }}
@@ -378,8 +383,9 @@ function App() {
       <MemberDashboard
         household={selectedHousehold}
         member={selectedMember}
+        personalProfileView={personalProfileView}
         onHome={() => setPage('households')}
-        onBack={() => selectHousehold(selectedHousehold)}
+        onBack={() => personalProfileView ? setPage('households') : selectHousehold(selectedHousehold)}
       />
     )
   }
