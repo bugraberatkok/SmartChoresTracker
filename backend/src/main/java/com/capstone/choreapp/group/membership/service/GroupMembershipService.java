@@ -1,6 +1,9 @@
 package com.capstone.choreapp.group.membership.service;
 
 import com.capstone.choreapp.chore.repository.ChoreRepository;
+import com.capstone.choreapp.activity.repository.ActivityEventRepository;
+import com.capstone.choreapp.gamification.reward.repository.RewardRepository;
+import com.capstone.choreapp.gamification.reward.repository.RewardRedemptionRepository;
 import com.capstone.choreapp.group.membership.entity.GroupMembership;
 import com.capstone.choreapp.group.membership.entity.GroupRole;
 import com.capstone.choreapp.group.membership.exception.GroupAccessDeniedException;
@@ -35,6 +38,9 @@ public class GroupMembershipService {
     private final GroupRepository groupRepository;
     private final GroupMembershipMapper groupMembershipMapper;
     private final ChoreRepository choreRepository;
+    private final ActivityEventRepository activityEventRepository;
+    private final RewardRepository rewardRepository;
+    private final RewardRedemptionRepository rewardRedemptionRepository;
 
     private final GroupMembershipRepository groupMembershipRepository;
     private final GroupJoinRequestRepository groupJoinRequestRepository;
@@ -250,6 +256,11 @@ public class GroupMembershipService {
         GroupMembership membership = requireMember(groupId, userId);
 
         if (membership.getRole() == GroupRole.OWNER) {
+            if (groupMembershipRepository.findAllByGroupId(groupId).size() == 1) {
+                deleteHouseholdForSoleOwner(membership.getGroup());
+                return;
+            }
+
             GroupMembership successor = groupMembershipRepository
                     .findFirstByGroupIdAndRoleOrderByJoinedAtAsc(groupId, GroupRole.ADMIN)
                     .orElseThrow(() -> new IllegalArgumentException(
@@ -265,6 +276,20 @@ public class GroupMembershipService {
 
         choreRepository.unassignUserFromGroupChores(groupId, userId);
         groupMembershipRepository.delete(membership);
+    }
+
+    private void deleteHouseholdForSoleOwner(Group group) {
+        Long groupId = group.getId();
+
+        rewardRedemptionRepository.deleteAllByGroupId(groupId);
+        rewardRepository.deleteAllByGroupId(groupId);
+        activityEventRepository.deleteAllByGroupId(groupId);
+        choreRepository.deleteCompletionDatesByGroupId(groupId);
+        choreRepository.deleteRecurrenceDaysByGroupId(groupId);
+        choreRepository.deleteAllByGroupId(groupId);
+        groupJoinRequestRepository.deleteAllByGroupId(groupId);
+        groupMembershipRepository.deleteAllByGroupId(groupId);
+        groupRepository.delete(group);
     }
 
     @Transactional

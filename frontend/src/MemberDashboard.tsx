@@ -370,6 +370,33 @@ export default function MemberDashboard({
       )
       setPoints((value) => Math.max(0, value + (chore.completed ? -1 : 1) * (updated.points ?? 0)))
 
+      // Reward balances are derived from completed-chore points, so refresh
+      // every household balance after a completion changes.
+      void Promise.all(dataHouseholds.map(async (item) => ({
+        householdId: item.id,
+        balance: await fetchRewardBalance(item.id),
+      })))
+        .then((balances) => {
+          const byHousehold = new Map(
+            balances.map((item) => [item.householdId, item.balance]),
+          )
+
+          setRewardBalance(balances.reduce<RewardBalanceResponse>((total, item) => ({
+            earnedPoints: total.earnedPoints + item.balance.earnedPoints,
+            spentPoints: total.spentPoints + item.balance.spentPoints,
+            availablePoints: total.availablePoints + item.balance.availablePoints,
+          }), { earnedPoints: 0, spentPoints: 0, availablePoints: 0 }))
+
+          setRewards((current) => current.map((reward) => ({
+            ...reward,
+            householdBalance: byHousehold.get(reward.householdId)?.availablePoints
+              ?? reward.householdBalance,
+          })))
+        })
+        .catch(() => {
+          // The chore update succeeded; a later page load can retry the balance.
+        })
+
       // Chore completion already succeeded; refresh gamification data separately
       if (!personalProfileView) void Promise.all([
         fetchLeaderboard(chore.householdId),
@@ -405,6 +432,7 @@ export default function MemberDashboard({
     const title = String(data.get('title')).trim()
     const description = String(data.get('description') ?? '').trim()
     const points = Number(data.get('points'))
+    const time = String(data.get('time') ?? '')
     const recurrenceDays = data.getAll('recurrenceDays').map(String)
 
     if (!title) {
@@ -414,6 +442,12 @@ export default function MemberDashboard({
 
     if (!Number.isFinite(points) || points < 0) {
       setActionError('Points must be a non-negative number')
+      return
+    }
+
+    const dueDate = new Date(`${editingChore.date}T${time}`)
+    if (!time || Number.isNaN(dueDate.getTime())) {
+      setActionError('Choose a valid time')
       return
     }
 
@@ -427,7 +461,8 @@ export default function MemberDashboard({
         title,
         description,
         points,
-        icon: String(data.get('icon') ?? editingChore.icon),
+        dueDate: dueDate.toISOString(),
+        icon: editingChore.icon,
         recurring: editingRecurring,
         recurrenceDays,
       })
@@ -650,7 +685,7 @@ export default function MemberDashboard({
               <button className="chore-check" type="button" onClick={() => toggleChore(chore)} aria-label={chore.completed ? `Mark ${chore.title} incomplete` : `Complete ${chore.title}`}>{chore.completed && '✓'}</button>
               <span className="chore-emoji">{chore.icon}</span>
               <div className="chore-info"><span>◷ {chore.time}{personalProfileView && chore.householdName ? ` · ${chore.householdName}` : ''}</span><strong>{chore.title}</strong>{chore.description && <small>{chore.description}</small>}</div>
-              {(personalProfileView ? dataHouseholds.find((item) => item.id === chore.householdId)?.isAdmin : household.isAdmin) && <div style={{ display: 'flex', gap: '0.35rem' }}><button type="button" onClick={() => { setActionError(''); setEditingRecurring(chore.recurring); setEditingChore(chore) }} title="Edit chore">✎</button><button type="button" onClick={() => { setActionError(''); setDeletingChore(chore) }} title="Delete chore">🗑</button></div>}
+              {(personalProfileView ? dataHouseholds.find((item) => item.id === chore.householdId)?.isAdmin : household.isAdmin) && <div style={{ display: 'flex', gap: '0.35rem' }}><button type="button" onClick={() => { setActionError(''); setEditingRecurring(chore.recurring); setEditingChore({ ...chore }) }} title="Edit chore">✎</button><button type="button" onClick={() => { setActionError(''); setDeletingChore(chore) }} title="Delete chore">🗑</button></div>}
               <div className="chore-points"><strong>{chore.points}</strong><span>★</span></div>
             </article>) : !loadingChores && <div className="empty-state"><span>☀️</span><h3>No chores for this day</h3><p>Enjoy the free time or add a new chore.</p></div>}
           </div>
@@ -761,18 +796,20 @@ export default function MemberDashboard({
         <div className="modal-backdrop" onMouseDown={() => setEditingChore(null)}>
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-chore-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className="modal-close" type="button" onClick={() => setEditingChore(null)}>×</button>
-            <span className="modal-icon">✎</span>
+            <span className="modal-icon">{editingChore.icon}</span>
             <h2 id="edit-chore-title">Edit chore</h2>
             <p>Update the task details for {member.name}.</p>
             <form onSubmit={submitEditChore}>
               <label>Choose an icon</label>
-              <div className="icon-picker">{CHORE_ICONS.map((icon) => <label key={icon}><input type="radio" name="icon" value={icon} defaultChecked={icon === editingChore.icon} /><span>{icon}</span></label>)}</div>
+              <div className="icon-picker">{CHORE_ICONS.map((icon) => <label key={icon}><input type="radio" name="icon" value={icon} checked={icon === editingChore.icon} onChange={() => setEditingChore((chore) => chore ? { ...chore, icon } : chore)} /><span>{icon}</span></label>)}</div>
               <label htmlFor="edit-chore-name">Chore name</label>
               <input className="modal-input" id="edit-chore-name" name="title" defaultValue={editingChore.title} required />
               <label htmlFor="edit-chore-description">Description</label>
               <input className="modal-input" id="edit-chore-description" name="description" defaultValue={editingChore.description} />
               <label htmlFor="edit-chore-points">Points</label>
               <input className="modal-input" id="edit-chore-points" name="points" type="number" min="0" max="50" defaultValue={editingChore.points} required />
+              <label htmlFor="edit-chore-time">Time</label>
+              <input className="modal-input" id="edit-chore-time" name="time" type="time" defaultValue={editingChore.time} required />
               <label className="recurring-toggle"><input type="checkbox" checked={editingRecurring} onChange={(event) => setEditingRecurring(event.target.checked)} /> Recurring task</label>
               {editingRecurring && <fieldset className="weekday-picker"><legend>Repeat on</legend>{week.map((day) => <label key={day.dayOfWeek}><input type="checkbox" name="recurrenceDays" value={day.dayOfWeek} defaultChecked={groupChores.find((chore) => chore.id === editingChore.backendId)?.recurrenceDays.includes(day.dayOfWeek)} /><span>{day.day.slice(0, 2)}</span></label>)}</fieldset>}
               {actionError && <p className="form-message error-message" role="alert">{actionError}</p>}

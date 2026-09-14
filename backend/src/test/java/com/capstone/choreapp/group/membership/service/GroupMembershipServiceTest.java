@@ -1,6 +1,9 @@
 package com.capstone.choreapp.group.membership.service;
 
 import com.capstone.choreapp.chore.repository.ChoreRepository;
+import com.capstone.choreapp.activity.repository.ActivityEventRepository;
+import com.capstone.choreapp.gamification.reward.repository.RewardRepository;
+import com.capstone.choreapp.gamification.reward.repository.RewardRedemptionRepository;
 import com.capstone.choreapp.group.entity.Group;
 import com.capstone.choreapp.group.membership.dto.GroupJoinRequestResponse;
 import com.capstone.choreapp.group.membership.entity.GroupJoinRequest;
@@ -19,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -34,6 +38,15 @@ class GroupMembershipServiceTest {
 
     @Mock
     private ChoreRepository choreRepository;
+
+    @Mock
+    private ActivityEventRepository activityEventRepository;
+
+    @Mock
+    private RewardRepository rewardRepository;
+
+    @Mock
+    private RewardRedemptionRepository rewardRedemptionRepository;
 
     @Mock
     private GroupRepository groupRepository;
@@ -107,5 +120,26 @@ class GroupMembershipServiceTest {
         groupMembershipService.leaveGroup(groupId, userId);
 
         verify(groupMembershipRepository).delete(membership);
+    }
+
+    @Test
+    void shouldDeleteHouseholdWhenSoleOwnerLeaves() {
+        Long groupId = 10L;
+        Long userId = 20L;
+        Group group = mock(Group.class);
+        GroupMembership membership = mock(GroupMembership.class);
+        when(group.getId()).thenReturn(groupId);
+        when(membership.getRole()).thenReturn(GroupRole.OWNER);
+        when(membership.getGroup()).thenReturn(group);
+        when(groupMembershipRepository.findByUserIdAndGroupId(userId, groupId))
+                .thenReturn(Optional.of(membership));
+        when(groupMembershipRepository.findAllByGroupId(groupId))
+                .thenReturn(List.of(membership));
+
+        groupMembershipService.leaveGroup(groupId, userId);
+
+        verify(groupMembershipRepository).deleteAllByGroupId(groupId);
+        verify(groupRepository).delete(group);
+        verify(groupMembershipRepository, never()).delete(membership);
     }
 }

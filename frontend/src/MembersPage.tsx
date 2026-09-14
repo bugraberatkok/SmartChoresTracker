@@ -769,7 +769,7 @@ export default function MembersPage({
               ×
             </button>
 
-            <span className="modal-icon">👤</span>
+            <span className="modal-icon">{AVATAR_EMOJIS[profileAvatar] ?? AVATAR_EMOJIS.default}</span>
             <h2 id="profile-modal-heading">Edit profile</h2>
             <p>Your name and avatar are shared across all households.</p>
 
