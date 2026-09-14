@@ -8,6 +8,9 @@ public record UpdateGroupRequest(
         String name,
 
         @Size(max = 500, message = "Description cannot exceed 500 characters")
-        String description
+        String description,
+
+        @Size(max = 16, message = "Household emoji is too long")
+        String emoji
 ) {
 }

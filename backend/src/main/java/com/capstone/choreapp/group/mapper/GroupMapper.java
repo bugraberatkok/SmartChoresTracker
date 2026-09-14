@@ -15,6 +15,7 @@ public class GroupMapper {
 
         group.setName(request.name());
         group.setDescription(request.description());
+        group.setEmoji(request.emoji());
         group.setOwner(owner);
 
         return group;
@@ -25,6 +26,7 @@ public class GroupMapper {
                 group.getId(),
                 group.getName(),
                 group.getDescription(),
+                group.getEmoji(),
                 group.getOwner().getId(),
                 group.getInviteCode(),
                 group.getCreatedAt(),
@@ -39,6 +41,10 @@ public class GroupMapper {
 
         if (request.description() != null) {
             group.setDescription(request.description().trim());
+        }
+
+        if (request.emoji() != null && !request.emoji().isBlank()) {
+            group.setEmoji(request.emoji());
         }
     }
 }

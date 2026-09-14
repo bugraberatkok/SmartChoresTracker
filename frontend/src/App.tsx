@@ -23,7 +23,7 @@ function toHousehold(group: GroupResponse, currentUserId: number): Household {
     description: group.description ?? undefined,
     ownerId: group.ownerId,
     inviteCode: group.inviteCode ?? undefined,
-    emoji: deriveEmoji(group.id),
+    emoji: group.emoji ?? deriveEmoji(group.id),
     isAdmin: group.ownerId === currentUserId,
     members: [],
     createdAt: group.createdAt,
@@ -234,6 +234,37 @@ function App() {
     setHouseholds((previous) => previous.filter((household) => household.id !== groupId))
   }
 
+  const openCurrentUserProfile = async () => {
+    if (!currentUser || households.length === 0) return
+
+    const household = selectedHousehold
+      ? households.find((item) => item.id === selectedHousehold.id) ?? households[0]
+      : households[0]
+
+    try {
+      const [membersData, choresData] = await Promise.all([
+        fetchGroupMembers(household.id),
+        fetchGroupChores(household.id),
+      ])
+      const members = membersData.map((member) => toMember(member, choresData))
+      const currentMembership = membersData.find((member) => member.userId === currentUser.id)
+      const enriched = {
+        ...household,
+        members,
+        isAdmin: currentMembership?.role === 'OWNER' || currentMembership?.role === 'ADMIN',
+      }
+      const currentMember = members.find((member) => member.id === currentUser.id)
+      if (!currentMember) return
+
+      setSelectedHousehold(enriched)
+      setSelectedMember(currentMember)
+      setHouseholds((previous) => previous.map((item) => item.id === enriched.id ? enriched : item))
+      setPage('dashboard')
+    } catch {
+      // Keep the household-selection page visible if profile data cannot load.
+    }
+  }
+
   // ---- render -------------------------------------------------------------
 
   if (page === 'register') {
@@ -250,6 +281,7 @@ function App() {
         onGroupCreated={handleGroupCreated}
         onGroupUpdated={handleGroupUpdated}
         onGroupDeleted={handleGroupDeleted}
+        onOpenProfile={openCurrentUserProfile}
         onLogout={handleLogout}
       />
     )

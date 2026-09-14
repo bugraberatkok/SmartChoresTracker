@@ -5,6 +5,8 @@ import type { Household } from './types'
 import { avatarEmoji, deriveInitials } from './types'
 import { createGroup, joinGroupByCode, fetchGroups, updateGroup, deleteGroup, ApiError, type AuthUser, type GroupResponse } from './api'
 
+const HOUSEHOLD_EMOJIS = ['🏡', '🏠', '🏢', '🎓', '🌿', '🏖️', '🏕️', '🏰', '🛖', '🏘️']
+
 type Props = {
   households: Household[]
   currentUser: AuthUser | null
@@ -13,10 +15,11 @@ type Props = {
   onGroupCreated: (group: GroupResponse) => void
   onGroupUpdated: (group: GroupResponse) => void
   onGroupDeleted: (groupId: number) => void
+  onOpenProfile: () => void
   onLogout: () => void
 }
 
-export default function HouseholdsPage({ households, currentUser, loading, onSelect, onGroupCreated, onGroupUpdated, onGroupDeleted, onLogout }: Props) {
+export default function HouseholdsPage({ households, currentUser, loading, onSelect, onGroupCreated, onGroupUpdated, onGroupDeleted, onOpenProfile, onLogout }: Props) {
   const [dialog, setDialog] = useState<'create' | 'join' | null>(null)
   const [editingHousehold, setEditingHousehold] = useState<Household | null>(null)
   const [deletingHousehold, setDeletingHousehold] = useState<Household | null>(null)
@@ -30,9 +33,10 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
     const data = new FormData(event.currentTarget)
     const name = String(data.get('name'))
     const description = String(data.get('description') ?? '')
+    const emoji = String(data.get('emoji') ?? '🏡')
 
     try {
-      const group = await createGroup(name, description)
+      const group = await createGroup(name, description, emoji)
       onGroupCreated(group)
       setDialog(null)
     } catch (err) {
@@ -81,6 +85,7 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
       const group = await updateGroup(editingHousehold.id, {
         name: String(data.get('name')),
         description: String(data.get('description') ?? ''),
+        emoji: String(data.get('emoji') ?? editingHousehold.emoji),
       })
       onGroupUpdated(group)
       setEditingHousehold(null)
@@ -114,7 +119,7 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
     <main className="app-shell">
       <header className="app-header">
         <div className="brand"><span className="brand-mark"><HomeMark /></span><span>Smart Chores</span></div>
-        <div className="user-menu"><span className={`header-avatar ${userAvatar ? 'emoji-avatar' : ''}`}>{userAvatar ?? userInitials}</span><span>{userFirstName}</span><button type="button" onClick={onLogout} aria-label="Sign out">↗</button></div>
+        <div className="user-menu"><button className="header-profile-button" type="button" onClick={onOpenProfile} disabled={households.length === 0} aria-label="Open my profile"><span className={`header-avatar ${userAvatar ? 'emoji-avatar' : ''}`}>{userAvatar ?? userInitials}</span><span>{userFirstName}</span></button><button type="button" onClick={onLogout} aria-label="Sign out">↗</button></div>
       </header>
 
       <section className="page-content">
@@ -153,6 +158,8 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
             <p>{dialog === 'create' ? 'Give your shared space a name and an optional description.' : 'Enter the invite code provided by your household admin.'}</p>
             <form onSubmit={dialog === 'create' ? handleCreate : handleJoin}>
               {dialog === 'create' ? <>
+                <label>Choose a household avatar</label>
+                <div className="household-emoji-picker">{HOUSEHOLD_EMOJIS.map((emoji, index) => <label key={emoji}><input type="radio" name="emoji" value={emoji} defaultChecked={index === 0} /><span>{emoji}</span></label>)}</div>
                 <label htmlFor="household-name">Household name</label>
                 <input className="modal-input" id="household-name" name="name" placeholder="e.g. Green Street Home" required />
                 <label htmlFor="household-desc">Description (optional)</label>
@@ -177,6 +184,8 @@ export default function HouseholdsPage({ households, currentUser, loading, onSel
             <h2 id="edit-household-title">Change household info</h2>
             <p>Update the household name or description.</p>
             <form onSubmit={handleUpdate}>
+              <label>Choose a household avatar</label>
+              <div className="household-emoji-picker">{HOUSEHOLD_EMOJIS.map((emoji) => <label key={emoji}><input type="radio" name="emoji" value={emoji} defaultChecked={emoji === editingHousehold.emoji} /><span>{emoji}</span></label>)}</div>
               <label htmlFor="edit-household-name">Household name</label>
               <input className="modal-input" id="edit-household-name" name="name" defaultValue={editingHousehold.name} required />
               <label htmlFor="edit-household-description">Description</label>

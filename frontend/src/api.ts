@@ -128,6 +128,7 @@ export interface GroupResponse {
   id: number
   name: string
   description: string | null
+  emoji: string | null
   ownerId: number
   inviteCode: string | null
   createdAt: string
@@ -142,16 +143,16 @@ export function fetchGroupById(groupId: number) {
   return request<GroupResponse>(`/groups/${groupId}`)
 }
 
-export function createGroup(name: string, description?: string) {
+export function createGroup(name: string, description?: string, emoji?: string) {
   return request<GroupResponse>('/groups', {
     method: 'POST',
-    body: JSON.stringify({ name, description: description ?? '' }),
+    body: JSON.stringify({ name, description: description ?? '', emoji }),
   })
 }
 
 export function updateGroup(
   groupId: number,
-  data: { name?: string; description?: string },
+  data: { name?: string; description?: string; emoji?: string },
 ) {
   return request<GroupResponse>(`/groups/${groupId}`, {
     method: 'PATCH',

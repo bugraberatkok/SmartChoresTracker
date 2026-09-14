@@ -1,0 +1,2 @@
+ALTER TABLE chore_groups
+    ADD COLUMN IF NOT EXISTS emoji VARCHAR(16);

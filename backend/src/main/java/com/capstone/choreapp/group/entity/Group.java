@@ -27,6 +27,9 @@ public class Group {
     @Column(length = 500)
     private String description;
 
+    @Column(length = 16)
+    private String emoji;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
