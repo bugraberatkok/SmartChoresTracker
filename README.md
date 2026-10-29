@@ -37,7 +37,9 @@ Smart Chores Tracker is a full-stack household chore management application deve
 
 **DevOps**
 - GitHub Actions CI
-- Railway — backend and PostgreSQL
+- Docker — backend image
+- Render — backend
+- Neon — PostgreSQL
 - Vercel — frontend
 
 ## Project Structure
@@ -131,8 +133,16 @@ GitHub Actions runs backend verification plus frontend install, lint, and produc
 The application is deployed with:
 
 - **Frontend:** Vercel
-- **Backend:** Railway
-- **Database:** PostgreSQL on Railway
+- **Backend:** Render free web service, built from [`backend/Dockerfile`](backend/Dockerfile) and described in [`render.yaml`](render.yaml)
+- **Database:** PostgreSQL 17 on Neon
+
+The free backend sleeps after 15 minutes without traffic, so the first request after a pause takes a minute or two. The sign-in and sign-up forms tell the user when that happens.
+
+To deploy your own copy:
+
+1. Create a Neon project on PostgreSQL 17 and copy the direct (non-pooled) connection details.
+2. In Render, create a Blueprint from this repository and fill in `DB_URL` (`jdbc:postgresql://<host>/<database>?sslmode=require`), `DB_USERNAME` and `DB_PASSWORD`. `JWT_SECRET` is generated for you.
+3. In Vercel, set `VITE_API_BASE_URL` to `https://<render-service>.onrender.com/api` and redeploy the frontend. If the frontend lives on another domain, update `CORS_ALLOWED_ORIGINS` in Render.
 
 Database schema changes are managed with Flyway migrations.
 
