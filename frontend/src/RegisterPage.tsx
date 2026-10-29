@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { EyeIcon, HomeMark } from './LoginPage'
-import { register, login, ApiError, type AuthUser } from './api'
+import { register, login, ApiError, onSlowRequest, WAKING_UP_MESSAGE, type AuthUser } from './api'
 
 const PASSWORD_REQUIREMENT =
   'The password must contain at least 8 characters, one uppercase letter, one number and one special character such as !, ?, or @.'
@@ -46,8 +46,11 @@ export default function RegisterPage({ onSignIn, onRegister }: RegisterPageProps
       return
     }
 
+    const cancelSlowNotice = onSlowRequest(() => setMessage(WAKING_UP_MESSAGE))
+
     try {
       await register(name, email, password)
+      cancelSlowNotice()
       setMessage('Account created! Taking you to the app...')
       const response = await login(email, password)
       onRegister(response.accessToken, response.user)
@@ -59,6 +62,7 @@ export default function RegisterPage({ onSignIn, onRegister }: RegisterPageProps
         setError('Something went wrong. Please try again.')
       }
     } finally {
+      cancelSlowNotice()
       setLoading(false)
     }
   }

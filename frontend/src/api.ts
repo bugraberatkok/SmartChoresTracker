@@ -28,6 +28,18 @@ export function isLoggedIn() {
   return !!accessToken
 }
 
+// ---- cold starts ----------------------------------------------------------
+
+// The hosted demo API sleeps when idle, so the first request after a quiet
+// spell can take a couple of minutes while the server boots.
+export const WAKING_UP_MESSAGE =
+  'Waking up the server. The first request after a quiet spell can take up to two minutes...'
+
+export function onSlowRequest(callback: () => void, delayMs = 5000) {
+  const timer = window.setTimeout(callback, delayMs)
+  return () => window.clearTimeout(timer)
+}
+
 // ---- generic request helper -----------------------------------------------
 
 async function request<T>(

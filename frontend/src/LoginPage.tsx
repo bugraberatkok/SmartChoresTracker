@@ -1,7 +1,7 @@
 import type { AuthUser } from './api'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { login, ApiError } from './api'
+import { login, ApiError, onSlowRequest, WAKING_UP_MESSAGE } from './api'
 
 export function HomeMark() {
   return (
@@ -43,6 +43,7 @@ export default function LoginPage({ onCreateAccount, onLogin }: LoginPageProps) 
     const data = new FormData(event.currentTarget)
     const email = String(data.get('email'))
     const password = String(data.get('password'))
+    const cancelSlowNotice = onSlowRequest(() => setMessage(WAKING_UP_MESSAGE))
 
     try {
       const response = await login(email, password)
@@ -56,6 +57,7 @@ export default function LoginPage({ onCreateAccount, onLogin }: LoginPageProps) 
         setError('Something went wrong. Please try again.')
       }
     } finally {
+      cancelSlowNotice()
       setLoading(false)
     }
   }
